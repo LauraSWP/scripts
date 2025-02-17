@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.34
+// @version      1.35
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -116,10 +116,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (!val || val.trim() === "") { val = inputElement.getAttribute('value'); }
     if (!val || val.trim() === "") { val = inputElement.getAttribute('placeholder'); }
     if ((!val || val.trim() === "") && window.Ember && inputElement.id) {
-      try { 
-        let view = Ember.View.views && Ember.View.views[inputElement.id]; 
-        if (view) { val = view.get('value'); } 
-      } catch (e) { console.error("Ember view lookup failed:", e); }
+      try {
+        let view = Ember.View.views && Ember.View.views[inputElement.id];
+        if (view) { val = view.get('value'); }
+      } catch (e) {
+        console.error("Ember view lookup failed:", e);
+      }
     }
     if (!val || val.trim() === "") {
       let parent = inputElement.parentElement;
@@ -134,45 +136,63 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     return noteDiv ? noteDiv.textContent.trim() : "";
   }
 
-  // ----- 7) Format Currency -----
+  // ----- 7) Format Currency (e.g., 300000 => 300.000$) -----
   function formatCurrency(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
   }
 
-  // ----- 8) Fetch CARR from Company Profile using DOMParser with Debug Logs -----
+  // ----- 8) Fetch CARR from Company Profile with more debug logs -----
   function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
     if (companyElem) {
-      console.log("Company element found:", companyElem);
       const relURL = companyElem.getAttribute('href');
       const companyURL = window.location.origin + relURL;
-      console.log("Company URL:", companyURL);
+      console.log("[CARR] Found company link on ticket page. Company URL:", companyURL);
+
       fetch(companyURL, { credentials: 'include' })
-        .then(response => response.text())
+        .then(response => {
+          console.log("[CARR] Fetch response status:", response.status, response.statusText);
+          return response.text();
+        })
         .then(htmlText => {
-          console.log("Fetched company page, length:", htmlText.length);
+          console.log("[CARR] Company page HTML length:", htmlText.length);
+          // parse the HTML
           const parser = new DOMParser();
           const doc = parser.parseFromString(htmlText, "text/html");
-          const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] .text__content');
-          if (carrDiv) {
-            console.log("CARR element found:", carrDiv);
+
+          // let's log the parent container's outerHTML
+          const carrParent = doc.querySelector('[data-test-field-content="CARR (converted)"]');
+          if (carrParent) {
+            console.log("[CARR] Found parent container with data-test-field-content='CARR (converted)':", carrParent.outerHTML);
           } else {
-            console.log("CARR element not found in company page.");
+            console.log("[CARR] Parent container not found for data-test-field-content='CARR (converted)'.");
           }
+
+          // now let's find the final element with the number
+          const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] .text__content.text--small.text--semibold');
+          if (carrDiv) {
+            console.log("[CARR] Found final .text__content element:", carrDiv.outerHTML);
+          } else {
+            console.log("[CARR] Did NOT find final .text__content element.");
+          }
+
           let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
-          console.log("Extracted CARR value:", carrValue);
+          console.log("[CARR] Extracted text content:", carrValue);
+
           if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
             carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
-            console.log("Formatted CARR value:", carrValue);
+            console.log("[CARR] Formatted value =>", carrValue);
+          } else {
+            console.log("[CARR] Not a numeric value or missing => returning 'N/A'.");
           }
           callback(carrValue);
         })
         .catch(err => {
-          console.error("Fetching company data failed:", err);
+          console.error("[CARR] Fetching company data failed:", err);
           callback("N/A");
         });
     } else {
-      console.log("No company element found on the ticket page.");
+      console.log("[CARR] No company link found on the ticket page => N/A.");
       callback("N/A");
     }
   }
@@ -180,18 +200,20 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   // ----- 9) Main MultiTool Beast Initialization -----
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("Initializing MultiTool Beast v1.34.5...");
+    console.log("Initializing MultiTool Beast v1.34.7...");
 
     initTheme();
 
-    // Retrieve open/close state (default open)
+    // Retrieve open/close state (default is open)
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
     // Retrieve stored position if available
     const storedPos = localStorage.getItem("multitool_position");
     let posStyles = {};
-    if (storedPos) { posStyles = JSON.parse(storedPos); }
+    if (storedPos) {
+      posStyles = JSON.parse(storedPos);
+    }
 
     // ---- Open Tab Button ----
     const openTabBtn = document.createElement('button');
@@ -263,7 +285,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right header: Drag handle and Close button.
+    // Right header: Drag handle + Close button.
     const rightHeaderDiv = document.createElement('div');
     rightHeaderDiv.classList.add('d-flex', 'align-items-center');
     const dragHandleBtn = document.createElement('button');
@@ -317,7 +339,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // Sun/Moon Toggle Switch
+    // Sun/Moon Toggle
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -381,7 +403,7 @@ input:checked + .slider:before {
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // ---- Parse Ticket ID (format as #ID) ----
+    // ---- Parse Ticket ID (#ID) ----
     let currentTicketId = "";
     let currentTicketLink = "";
     let ticketIdVal = "";
@@ -392,7 +414,7 @@ input:checked + .slider:before {
       ticketIdVal = "#" + currentTicketId;
     }
 
-    // ---- After delay, populate custom field data ----
+    // ---- After short delay, populate custom fields ----
     setTimeout(() => {
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
@@ -444,7 +466,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
       cardBody.appendChild(createMenuItem("Account", accountVal));
 
-      // ---- New Button: Copy Account/Profile in "accountname/profilename" format ----
+      // ---- New Button: Copy Account/Profile (format "accountname/profilename") ----
       const copyAccProfBtn = document.createElement('button');
       copyAccProfBtn.textContent = "Copy Account/Profile";
       copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2');
@@ -462,7 +484,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // ---- Fetch and display CARR from Company Profile ----
+      // ---- Fetch & display CARR from Company Profile ----
       fetchCARR(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue));
       });
@@ -578,7 +600,7 @@ input:checked + .slider:before {
     // ---- Append Wrapper & Enable Dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-    console.log("MultiTool Beast v1.34.5 loaded!");
+    console.log("MultiTool Beast v1.34.7 loaded!");
   }
 
   if (document.readyState === 'loading') {
