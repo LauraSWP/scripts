@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.28
+// @version      1.29
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,20 +13,20 @@
 (function() {
   'use strict';
 
-  // --- 0) Only run on ticket pages (e.g. /a/tickets/259532) ---
+  // ---- 0) Only run on direct ticket pages (e.g. /a/tickets/259532) ----
   const path = window.location.pathname;
   if (!/^\/a\/tickets\/\d+$/.test(path)) {
     console.log("MultiTool Beast: Not a ticket page. Aborting.");
     return;
   }
 
-  // --- 1) Inject Bootstrap CSS ---
+  // ---- 1) Inject Bootstrap CSS ----
   const bootstrapLink = document.createElement('link');
   bootstrapLink.rel = 'stylesheet';
   bootstrapLink.href = 'https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css';
   document.head.appendChild(bootstrapLink);
 
-  // --- 2) Minimal Dark Mode CSS ---
+  // ---- 2) Minimal Dark Mode CSS Overrides ----
   const nightModeCSS = `
 /* Minimal Dark Mode Overrides */
 body, html, .page, .main-content {
@@ -57,7 +57,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (styleEl) styleEl.remove();
   }
 
-  // --- 3) Theme Toggle Functions ---
+  // ---- 3) Theme Toggle Functions ----
   function setTheme(themeName) {
     localStorage.setItem('fdTheme', themeName);
   }
@@ -79,7 +79,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // --- 4) Draggable Function (for the wrapper) ---
+  // ---- 4) Draggable Function (stores position) ----
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
     handle.onmousedown = dragMouseDown;
@@ -102,10 +102,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     function closeDragElement() {
       document.onmouseup = null;
       document.onmousemove = null;
+      // Save new position
+      localStorage.setItem("multitool_position", JSON.stringify({
+        top: elmnt.style.top,
+        left: elmnt.style.left
+      }));
     }
   }
 
-  // --- 5) Field Value Helper (for custom fields) ---
+  // ---- 5) Field Value Helper ----
   function getFieldValue(inputElement) {
     if (!inputElement) return "";
     let val = inputElement.value;
@@ -118,34 +123,64 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if ((!val || val.trim() === "") && window.Ember && inputElement.id) {
       try {
         let view = Ember.View.views && Ember.View.views[inputElement.id];
-        if (view) val = view.get('value');
+        if (view) { val = view.get('value'); }
       } catch (e) {
         console.error("Ember view lookup failed:", e);
       }
     }
     if (!val || val.trim() === "") {
       let parent = inputElement.parentElement;
-      if (parent) val = parent.innerText;
+      if (parent) { val = parent.innerText; }
     }
     return val ? val.trim() : "";
   }
 
-  // --- 6) Summary Helper ---
+  // ---- 6) Summary Helper ----
   function getSummary() {
     const noteDiv = document.querySelector('.ticket_note[data-note-id]');
     return noteDiv ? noteDiv.textContent.trim() : "";
   }
 
-  // --- 7) Main MultiTool Beast Initialization ---
-  function initTool() {
+  // ---- 7) Main MultiTool Beast Initialization ----
+  async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("Initializing MultiTool Beast v1.32...");
+    console.log("Initializing MultiTool Beast v1.33...");
 
     initTheme();
 
-    // Create a small tab button to open the tool when closed.
+    // --- Open/Close State ---
+    const isOpen = localStorage.getItem("multitool_open") !== "false";
+
+    // --- Outer wrapper (resizable) ---
+    const wrapper = document.createElement('div');
+    wrapper.id = "multitool-beast-wrapper";
+    // Check stored position; if exists, use it, else use defaults.
+    const storedPos = localStorage.getItem("multitool_position");
+    if (storedPos) {
+      const pos = JSON.parse(storedPos);
+      wrapper.style.top = pos.top;
+      wrapper.style.left = pos.left;
+      // Clear bottom/right so we use absolute coordinates.
+      wrapper.style.bottom = "";
+      wrapper.style.right = "";
+    } else {
+      wrapper.style.bottom = '80px';
+      wrapper.style.right = '20px';
+    }
+    wrapper.style.position = 'fixed';
+    wrapper.style.zIndex = '9999';
+    wrapper.style.width = '360px';
+    wrapper.style.minWidth = '280px';
+    wrapper.style.minHeight = '200px';
+    wrapper.style.resize = 'both';
+    wrapper.style.overflow = 'auto';
+    wrapper.style.display = isOpen ? 'block' : 'none';
+    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
+
+    // --- Open Tab Button ---
     const openTabBtn = document.createElement('button');
-    openTabBtn.innerHTML = '<i class="fas fa-tools"></i>'; // Using FontAwesome icon if available; fallback text otherwise.
+    // Use the same icon as header (tealium icon)
+    openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
     openTabBtn.style.bottom = '0px';
     openTabBtn.style.right = '0px';
@@ -156,37 +191,27 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     openTabBtn.style.borderRadius = '4px';
     openTabBtn.style.padding = '6px 10px';
     openTabBtn.title = 'Open MultiTool Beast';
-    openTabBtn.style.display = 'none'; // initially hidden because box is open
-
+    openTabBtn.style.display = isOpen ? 'none' : 'block';
+    openTabBtn.addEventListener('click', () => {
+      wrapper.style.display = 'block';
+      openTabBtn.style.display = 'none';
+      localStorage.setItem("multitool_open", "true");
+    });
     document.body.appendChild(openTabBtn);
 
-    // Outer wrapper (resizable)
-    const wrapper = document.createElement('div');
-    wrapper.id = "multitool-beast-wrapper";
-    wrapper.style.position = 'fixed';
-    wrapper.style.bottom = '80px';
-    wrapper.style.right = '20px';
-    wrapper.style.zIndex = '9999';
-    wrapper.style.width = '360px';
-    wrapper.style.minWidth = '280px';
-    wrapper.style.minHeight = '200px';
-    wrapper.style.resize = 'both';
-    wrapper.style.overflow = 'auto';
-    wrapper.style.display = 'block';
-
-    // Main card container using Bootstrap card classes.
+    // --- Main Card Container using Bootstrap ---
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
     container.classList.add('card', 'text-dark', 'bg-white');
     container.style.cursor = 'default';
     wrapper.appendChild(container);
 
-    // Card header with padding and bottom border.
+    // --- Card Header ---
     const headerArea = document.createElement('div');
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left side of header: Tealium icon + "MultiTool Beast"
+    // Left side: Tealium icon + title
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -201,17 +226,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right side of header: drag handle and close button.
+    // Right side: Drag handle and Close button
     const rightHeaderDiv = document.createElement('div');
     rightHeaderDiv.classList.add('d-flex', 'align-items-center');
-    // Drag handle (hand icon)
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = '✋';
     dragHandleBtn.classList.add('btn', 'btn-light', 'border', 'mr-2');
     dragHandleBtn.style.cursor = 'move';
     dragHandleBtn.title = 'Drag to move MultiTool Beast';
     rightHeaderDiv.appendChild(dragHandleBtn);
-    // Close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
     closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
@@ -219,16 +242,17 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     closeBtn.addEventListener('click', () => {
       wrapper.style.display = 'none';
       openTabBtn.style.display = 'block';
+      localStorage.setItem("multitool_open", "false");
     });
     rightHeaderDiv.appendChild(closeBtn);
     headerArea.appendChild(rightHeaderDiv);
 
-    // Card body
+    // --- Card Body ---
     const cardBody = document.createElement('div');
     cardBody.classList.add('card-body', 'p-3');
     container.appendChild(cardBody);
 
-    // Top row inside card body: Copy All, scroll arrows, sun/moon toggle.
+    // Top row inside Card Body: Copy All, scroll arrows, sun/moon toggle.
     const topRowDiv = document.createElement('div');
     topRowDiv.classList.add('mb-2');
     cardBody.appendChild(topRowDiv);
@@ -269,7 +293,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     themeToggleLabel.appendChild(themeToggleSpan);
     topRowDiv.appendChild(themeToggleLabel);
 
-    // Minimal slider CSS (same as before)
+    // Minimal slider CSS.
     const sliderStyle = document.createElement('style');
     sliderStyle.innerHTML = `
 .switch {
@@ -308,7 +332,7 @@ input:checked + .slider:before {
       refreshCheckbox();
     });
 
-    // "Include Summary" checkbox
+    // "Include Summary" checkbox.
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
     const summaryCheckbox = document.createElement('input');
@@ -322,7 +346,7 @@ input:checked + .slider:before {
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Parse Ticket ID from URL (and format as #ID)
+    // Parse Ticket ID from URL, format as #ID.
     let currentTicketId = "";
     let currentTicketLink = "";
     let ticketIdVal = "";
@@ -333,7 +357,7 @@ input:checked + .slider:before {
       ticketIdVal = "#" + currentTicketId;
     }
 
-    // After a delay, fill in the custom fields.
+    // After delay, populate custom field data.
     setTimeout(() => {
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
@@ -341,24 +365,21 @@ input:checked + .slider:before {
       const profileVal = getFieldValue(profileInput);
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
-      // We removed email from display
 
+      // Helper to create each field row.
       function createMenuItem(labelText, valueText) {
         const itemDiv = document.createElement('div');
         itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom');
-
         const label = document.createElement('span');
         label.textContent = labelText + ": ";
         label.style.fontWeight = 'bold';
         itemDiv.appendChild(label);
-
         if (valueText) {
           const lowerVal = valueText.trim().toLowerCase();
           if (lowerVal === 'account' || lowerVal === 'profile') {
             valueText = "";
           }
         }
-
         let valueEl;
         if (labelText.toLowerCase() === "relevant urls" && valueText && (valueText.startsWith("http") || valueText.startsWith("www"))) {
           valueEl = document.createElement('a');
@@ -371,7 +392,6 @@ input:checked + .slider:before {
         }
         valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
         itemDiv.appendChild(valueEl);
-
         const copyBtn = document.createElement('button');
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'ml-2');
@@ -386,7 +406,6 @@ input:checked + .slider:before {
           }
         });
         itemDiv.appendChild(copyBtn);
-
         return itemDiv;
       }
 
@@ -395,7 +414,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // Recent Tickets (last 7 days), excluding current ticket.
+      // Recent Tickets (last 7 days), excluding current.
       function getRecentTickets() {
         const tickets = [];
         const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -414,9 +433,7 @@ input:checked + .slider:before {
                 const subject = linkEl.textContent.trim();
                 const matchTicketId = href.match(/tickets\/(\d+)/);
                 let foundTicketId = matchTicketId ? matchTicketId[1] : "";
-                if (foundTicketId && foundTicketId === currentTicketId) {
-                  return;
-                }
+                if (foundTicketId && foundTicketId === currentTicketId) return;
                 tickets.push({ href, subject, date: ticketDate });
               }
             }
@@ -440,7 +457,6 @@ input:checked + .slider:before {
         recentTickets.forEach(ticket => {
           const ticketDiv = document.createElement('div');
           ticketDiv.classList.add('mb-2', 'pb-2', 'border-bottom');
-
           const ticketLink = document.createElement('a');
           ticketLink.href = ticket.href;
           ticketLink.textContent = ticket.subject;
@@ -455,7 +471,6 @@ input:checked + .slider:before {
             ticketLink.style.textDecoration = 'none';
           });
           ticketDiv.appendChild(ticketLink);
-
           const copyTicketBtn = document.createElement('button');
           copyTicketBtn.textContent = "Copy Link";
           copyTicketBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
@@ -468,7 +483,6 @@ input:checked + .slider:before {
             });
           });
           ticketDiv.appendChild(copyTicketBtn);
-
           cardBody.appendChild(ticketDiv);
         });
       } else {
@@ -478,13 +492,11 @@ input:checked + .slider:before {
       }
     }, 1500);
 
-    // "Copy All" button logic – formatted for Slack/Jira (using Jira wiki markup)
+    // "Copy All" button logic – formatted snippet for Slack/Jira.
     copyAllBtn.addEventListener('click', function() {
-      // Re-check fields from the DOM for reliability
       const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
       const currentID = matchUrl ? matchUrl[1] : "";
       const link = window.location.origin + "/a/tickets/" + currentID;
-      // Use Jira wiki markup: [#ID|URL]
       const ticketPart = `**Ticket ID**: [#${currentID}|${link}]\n`;
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       let acc = getFieldValue(accountInput);
@@ -499,7 +511,6 @@ input:checked + .slider:before {
                        `**Account**: ${acc || "N/A"}\n` +
                        `**Profile**: ${prof || "N/A"}\n` +
                        `**Relevant URLs**: ${relUrls}\n`;
-      // Include Summary if checkbox is checked.
       const summaryChecked = document.getElementById('include-summary');
       if (summaryChecked && summaryChecked.checked) {
         const summaryText = getSummary();
@@ -515,11 +526,11 @@ input:checked + .slider:before {
       });
     });
 
-    // Append the wrapper and make it draggable via the drag handle.
+    // Append wrapper to document body and enable drag.
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("MultiTool Beast v1.32 loaded!");
+    console.log("MultiTool Beast v1.33 loaded!");
   }
 
   if (document.readyState === 'loading') {
