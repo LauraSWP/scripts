@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Freshdesk Ticket Info Menu with Draggable Night Mode, Recent Tickets, and Copy All
+// @name         Freshdesk Ticket Info Menu with Draggable Night Mode, Recent Tickets, and Copy All (Top-Left)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.21
-// @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button, and arrow buttons for scrolling top/bottom. Excludes sender email in the "Copy All" output.
+// @version      1.22
+// @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -23,7 +23,7 @@
         if (!val || val.trim() === "") {
             val = inputElement.getAttribute('placeholder');
         }
-        // If still empty and Ember is available, try to look up the Ember view by id
+        // If still empty and Ember is available, try to look up the Ember view by id.
         if ((!val || val.trim() === "") && window.Ember && inputElement.id) {
             try {
                 let view = Ember.View.views && Ember.View.views[inputElement.id];
@@ -34,7 +34,7 @@
                 console.error("Ember view lookup failed:", e);
             }
         }
-        // Fallback: check parent element's innerText
+        // Fallback: check parent element's innerText.
         if (!val || val.trim() === "") {
             let parent = inputElement.parentElement;
             if (parent) {
@@ -72,12 +72,12 @@
         }
     }
 
-    // Attempt to fetch email from input; if empty, fallback to mailto link
+    // Attempt to fetch email from input; if empty, fallback to mailto link.
     function getEmailValue() {
         const emailInput = document.querySelector('input[name="requester[email]"]') ||
                            document.querySelector('input[data-test-text-field="requester[email]"]');
         let emailVal = emailInput ? emailInput.value.trim() : "";
-        // If empty, check the mailto link
+        // If empty, check the mailto link.
         if (!emailVal) {
             const mailtoAnchor = document.querySelector('.contacts_cardemail--text a[href^="mailto:"]');
             if (mailtoAnchor) {
@@ -113,8 +113,8 @@
             /* Sticky Menu Styling */
             #ticket-info-menu {
                 position: fixed;
-                bottom: 20px;
-                right: 20px;
+                top: 20px;
+                left: 20px;
                 background-color: #fff;
                 border: 1px solid #ccc;
                 padding: 10px;
@@ -155,29 +155,27 @@
         `;
         document.head.appendChild(styleTag);
 
-        // Create the container for our menu
+        // Create the container for our menu.
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
 
-        // Night mode toggle button (floated to the right)
+        // Night mode toggle button (floated to the right).
         const nightModeToggle = document.createElement('button');
         nightModeToggle.textContent = "Night Mode";
         nightModeToggle.style.float = 'right';
         container.appendChild(nightModeToggle);
 
-        // Add "Copy All" button next to "Night Mode"
+        // "Copy All" button next to Night Mode.
         const copyAllBtn = document.createElement('button');
         copyAllBtn.textContent = "Copy All";
         copyAllBtn.style.float = 'right';
-        copyAllBtn.style.marginRight = '5px'; // small spacing
         container.appendChild(copyAllBtn);
 
-        // Add arrow buttons for scrolling top/bottom
+        // Arrow buttons for scrolling top and bottom.
         const arrowUpBtn = document.createElement('button');
         arrowUpBtn.textContent = "↑";
         arrowUpBtn.title = "Scroll to top";
         container.appendChild(arrowUpBtn);
-
         const arrowDownBtn = document.createElement('button');
         arrowDownBtn.textContent = "↓";
         arrowDownBtn.title = "Scroll to bottom";
@@ -190,7 +188,7 @@
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         });
 
-        // Set initial night mode state from localStorage
+        // Set initial night mode state from localStorage.
         const nightModeEnabled = localStorage.getItem('fdNightMode') === 'true';
         if (nightModeEnabled) {
             container.classList.add('night');
@@ -213,7 +211,7 @@
             }
         });
 
-        // Menu Title – also used as the drag handle
+        // Menu Title – also used as the drag handle.
         const title = document.createElement('div');
         title.textContent = "Ticket Info";
         title.style.fontWeight = 'bold';
@@ -221,10 +219,10 @@
         title.style.cursor = 'move';
         container.appendChild(title);
 
-        // Make the container draggable using the title as handle
+        // Make the container draggable using the title as handle.
         makeDraggable(container, title);
 
-        // Helper: Create a menu item with a copy button
+        // Helper: Create a menu item with a copy button.
         function createMenuItem(labelText, valueText) {
             const itemDiv = document.createElement('div');
             itemDiv.style.marginBottom = '6px';
@@ -234,7 +232,7 @@
             label.style.fontWeight = 'bold';
             itemDiv.appendChild(label);
 
-            // If the user sees "Profile" or "Account" in the UI but it's meaningless, treat it as empty
+            // Treat "Profile" or "Account" as empty.
             if (valueText) {
                 const lowerVal = valueText.trim().toLowerCase();
                 if (lowerVal === "profile" || lowerVal === "account") {
@@ -265,52 +263,37 @@
             return itemDiv;
         }
 
-        // Grab the current ticket ID from the URL so we can exclude it from "recent tickets"
+        // Grab the current ticket ID from the URL for exclusion and linking.
         let currentTicketId = "";
         const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
         if (matchUrl) {
             currentTicketId = matchUrl[1];
         }
+        const currentTicketLink = window.location.origin + "/a/tickets/" + currentTicketId;
 
-        // We'll store the values in these variables so we can build the "Copy All" text later
-        let accountVal = "";
-        let profileVal = "";
-        let urlsVal = "";
-        let currentTicketLink = ""; // For Slack/Jira
-
-        // Delay reading custom fields so Ember can finish
+        // Delay reading custom fields so Ember can finish rendering.
         setTimeout(() => {
-            // Parse the domain so we can link the ticket
-            const ticketBaseUrl = window.location.origin + "/a/tickets/" + currentTicketId;
-            currentTicketLink = ticketBaseUrl; // e.g. https://tealium.freshdesk.com/a/tickets/259601
+            let accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
+            let accountVal = getFieldValue(accountInput);
+            let profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
+            let profileVal = getFieldValue(profileInput);
+            let urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
+            let urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
+            let emailVal = getEmailValue();
 
-            const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-            accountVal = getFieldValue(accountInput);
-
-            const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-            profileVal = getFieldValue(profileInput);
-
-            const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
-            urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
-
-            // Create the UI items
+            // Append custom field items.
             container.appendChild(createMenuItem("Account", accountVal));
             container.appendChild(createMenuItem("Account Profile", profileVal));
-
-            // We skip the email in "Copy All" but we still show it in the UI
-            const emailVal = getEmailValue();
             container.appendChild(createMenuItem("Sender Email", emailVal));
-
             container.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-            // Recent Tickets (last 7 days), excluding current
+            // Recent Tickets (last 7 days), excluding current.
             function getRecentTickets() {
                 const tickets = [];
                 const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
                 if (!ticketElements.length) return tickets;
                 const now = new Date();
                 const threshold = 7 * 24 * 60 * 60 * 1000;
-
                 ticketElements.forEach(ticketEl => {
                     const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
                     if (timeEl) {
@@ -321,15 +304,11 @@
                             if (linkEl) {
                                 const href = linkEl.href;
                                 const subject = linkEl.textContent.trim();
-                                // Parse ticket ID from the link
                                 const matchTicketId = href.match(/tickets\/(\d+)/);
-                                let foundTicketId = matchTicketId ? matchTicketId[1] : "";
-
-                                // Exclude if it matches currentTicketId
-                                if (foundTicketId && foundTicketId === currentTicketId) {
-                                    return; // skip
+                                let ticketId = matchTicketId ? matchTicketId[1] : "";
+                                if (ticketId && ticketId === currentTicketId) {
+                                    return; // Exclude current ticket.
                                 }
-
                                 tickets.push({href, subject, date: ticketDate});
                             }
                         }
@@ -339,17 +318,17 @@
             }
 
             const recentTickets = getRecentTickets();
+            const divider = document.createElement('hr');
+            divider.style.margin = '10px 0';
+            container.appendChild(divider);
+
+            const recentHeader = document.createElement('div');
+            recentHeader.textContent = "Recent Tickets (last 7 days)";
+            recentHeader.style.fontWeight = 'bold';
+            recentHeader.style.marginBottom = '6px';
+            container.appendChild(recentHeader);
+
             if (recentTickets.length) {
-                const divider = document.createElement('hr');
-                divider.style.margin = '10px 0';
-                container.appendChild(divider);
-
-                const recentHeader = document.createElement('div');
-                recentHeader.textContent = "Recent Tickets (last 7 days)";
-                recentHeader.style.fontWeight = 'bold';
-                recentHeader.style.marginBottom = '6px';
-                container.appendChild(recentHeader);
-
                 recentTickets.forEach(ticket => {
                     const ticketDiv = document.createElement('div');
                     ticketDiv.style.marginBottom = '6px';
@@ -383,48 +362,43 @@
 
                     container.appendChild(ticketDiv);
                 });
+            } else {
+                const noTicketsDiv = document.createElement('div');
+                noTicketsDiv.textContent = "No tickets in the last 7 days";
+                container.appendChild(noTicketsDiv);
             }
         }, 1500);
 
-        // "Copy All" button logic
+        // "Copy All" button logic: builds a formatted note.
         copyAllBtn.addEventListener('click', function() {
-            // We'll build a multiline text for Slack/Jira
-            // We exclude the email field here as requested
-            let textToCopy = "";
-            // If we have a ticket ID from the URL, link it
-            let currentTicketIdFromUrl = "";
-            const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
-            if (matchUrl) {
-                currentTicketIdFromUrl = matchUrl[1];
+            // Ensure accountVal and profileVal are adjusted as in UI.
+            let acc = accountVal;
+            let prof = profileVal;
+            if (acc && acc.trim().toLowerCase() === "account") {
+                acc = "";
             }
-            const ticketLink = window.location.origin + "/a/tickets/" + currentTicketIdFromUrl;
-
-            // We'll do something like:
-            // **Ticket ID**: https://domain/a/tickets/12345
-            // **Account**: ...
-            // **Profile**: ...
-            // **Relevant URLs**: ...
-            // (No email)
-            textToCopy += `**Ticket ID**: ${ticketLink}\n`;
-            textToCopy += `**Account**: ${accountVal || "N/A"}\n`;
-            textToCopy += `**Profile**: ${profileVal || "N/A"}\n`;
+            if (prof && prof.trim().toLowerCase() === "profile") {
+                prof = "";
+            }
+            let textToCopy = "";
+            textToCopy += `**Ticket ID**: <${currentTicketLink}|${currentTicketId}>\n`;
+            textToCopy += `**Account**: ${acc || "N/A"}\n`;
+            textToCopy += `**Profile**: ${prof || "N/A"}\n`;
             textToCopy += `**Relevant URLs**: ${urlsVal || "N/A"}\n`;
 
             navigator.clipboard.writeText(textToCopy).then(() => {
                 copyAllBtn.textContent = "Copied All!";
-                setTimeout(() => {
-                    copyAllBtn.textContent = "Copy All";
-                }, 2000);
+                setTimeout(() => { copyAllBtn.textContent = "Copy All"; }, 2000);
             }).catch(err => {
                 console.error("Copy All failed:", err);
             });
         });
 
-        // Append the menu to document.body
+        // Append the menu to document.body.
         document.body.appendChild(container);
         console.log("Ticket info menu appended to document.body");
 
-        // Convert fixed positioning to allow dragging by setting initial left/top
+        // After appending, convert fixed positioning to allow dragging by setting initial left/top.
         const rect = container.getBoundingClientRect();
         container.style.left = rect.left + "px";
         container.style.top = rect.top + "px";
