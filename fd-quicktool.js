@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.6
+// @version      1.7
 // @description  Adds a sticky menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,7 +13,7 @@
 (function() {
     'use strict';
 
-    window.addEventListener('load', function() {
+    function initTool() {
         // Inject CSS for global dark mode on Freshdesk and the sticky menu
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
@@ -90,7 +90,7 @@
             nightModeToggle.textContent = "Day Mode";
         }
 
-        // Define the toggleNightMode function now that container & nightModeToggle are in scope
+        // Toggle night mode function
         function toggleNightMode(enable) {
             if (enable) {
                 document.body.classList.add('fd-night-mode');
@@ -131,127 +131,4 @@
             value.style.userSelect = 'text';
             itemDiv.appendChild(value);
             
-            const copyBtn = document.createElement('button');
-            copyBtn.textContent = "Copy";
-            copyBtn.style.marginLeft = '5px';
-            copyBtn.style.fontSize = '12px';
-            copyBtn.style.cursor = 'pointer';
-            copyBtn.addEventListener('click', function() {
-                if (valueText) {
-                    navigator.clipboard.writeText(valueText).then(() => {
-                        copyBtn.textContent = "Copied!";
-                        setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
-                    }).catch(err => {
-                        console.error("Copy failed:", err);
-                    });
-                }
-            });
-            itemDiv.appendChild(copyBtn);
-            
-            return itemDiv;
-        }
-
-        // Grab ticket fields based on your selectors
-        const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-        const accountValue = accountInput ? accountInput.value.trim() : "";
-
-        const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-        const profileValue = profileInput ? profileInput.value.trim() : "";
-
-        const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
-        const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
-
-        const emailInput = document.querySelector('input[name="requester[email]"]') || document.querySelector('input[data-test-text-field="requester[email]"]');
-        const emailValue = emailInput ? emailInput.value.trim() : "";
-
-        // Append main info items
-        container.appendChild(createMenuItem("Account", accountValue));
-        container.appendChild(createMenuItem("Account Profile", profileValue));
-        container.appendChild(createMenuItem("Sender Email", emailValue));
-        container.appendChild(createMenuItem("Relevant URLs", urlsValue));
-
-        // ---------- Recent Tickets Section ----------
-        // Function to parse timeline ticket dates and return recent ones (last 7 days)
-        function getRecentTickets() {
-            const tickets = [];
-            const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
-            if (!ticketElements.length) return tickets;
-            const now = new Date();
-            const thresholdDays = 7; // 7-day threshold
-            const threshold = thresholdDays * 24 * 60 * 60 * 1000;
-            
-            ticketElements.forEach(ticketEl => {
-                const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
-                if (timeEl) {
-                    let dateStr = timeEl.textContent.trim();
-                    // Remove comma for cleaner parsing ("16 Feb 2025, 05:01 PM" -> "16 Feb 2025 05:01 PM")
-                    dateStr = dateStr.replace(',', '');
-                    let ticketDate = new Date(dateStr);
-                    if (!isNaN(ticketDate)) {
-                        if ((now - ticketDate <= threshold) && (ticketDate <= now)) {
-                            const linkEl = ticketEl.querySelector('a.text__link-heading');
-                            if (linkEl) {
-                                const href = linkEl.href;
-                                const subject = linkEl.textContent.trim();
-                                tickets.push({href, subject, date: ticketDate});
-                            }
-                        }
-                    }
-                }
-            });
-            return tickets;
-        }
-
-        const recentTickets = getRecentTickets();
-        if (recentTickets.length) {
-            const divider = document.createElement('hr');
-            divider.style.margin = '10px 0';
-            container.appendChild(divider);
-
-            const recentHeader = document.createElement('div');
-            recentHeader.textContent = "Recent Tickets (last 7 days)";
-            recentHeader.style.fontWeight = 'bold';
-            recentHeader.style.marginBottom = '6px';
-            container.appendChild(recentHeader);
-
-            recentTickets.forEach(ticket => {
-                const ticketDiv = document.createElement('div');
-                ticketDiv.style.marginBottom = '6px';
-
-                const ticketLink = document.createElement('a');
-                ticketLink.href = ticket.href;
-                ticketLink.textContent = ticket.subject;
-                ticketLink.target = '_blank';
-                ticketLink.style.color = '#007bff';
-                ticketLink.style.textDecoration = 'none';
-                ticketLink.style.marginRight = '5px';
-                ticketLink.addEventListener('mouseover', () => {
-                    ticketLink.style.textDecoration = 'underline';
-                });
-                ticketLink.addEventListener('mouseout', () => {
-                    ticketLink.style.textDecoration = 'none';
-                });
-                ticketDiv.appendChild(ticketLink);
-
-                const copyTicketBtn = document.createElement('button');
-                copyTicketBtn.textContent = "Copy Link";
-                copyTicketBtn.style.fontSize = '12px';
-                copyTicketBtn.style.cursor = 'pointer';
-                copyTicketBtn.addEventListener('click', function() {
-                    navigator.clipboard.writeText(ticket.href).then(() => {
-                        copyTicketBtn.textContent = "Copied!";
-                        setTimeout(() => { copyTicketBtn.textContent = "Copy Link"; }, 2000);
-                    }).catch(err => {
-                        console.error("Copy failed:", err);
-                    });
-                });
-                ticketDiv.appendChild(copyTicketBtn);
-
-                container.appendChild(ticketDiv);
-            });
-        }
-
-        // Append the sticky menu to the document
-        document.body.appendChild(container);
-    });
-})();
+            const copyBtn = document.createElement(
