@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
+// @name         Freshdesk Ticket Info Menu with Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.11
-// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode. Appended to document.body.
+// @version      1.12
+// @description  Appends a sticky menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. Always appended to body.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -17,10 +17,10 @@
         // Avoid duplicate insertion
         if (document.getElementById("ticket-info-menu")) return;
 
-        // Inject CSS for dark mode on Freshdesk and for our menu
+        // Inject CSS for dark mode and our sticky menu
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
-            /* Global Dark Mode for Freshdesk */
+            /* Global Dark Mode Overrides */
             body.fd-night-mode {
                 background-color: #121212 !important;
                 color: #e0e0e0 !important;
@@ -36,21 +36,7 @@
                 color: #e0e0e0 !important;
                 border-color: #333 !important;
             }
-            /* Menu Dark Mode Overrides */
-            #ticket-info-menu.night {
-                background-color: #333 !important;
-                border: 1px solid #555 !important;
-                color: #ddd !important;
-            }
-            #ticket-info-menu.night a {
-                color: #66aaff !important;
-            }
-            #ticket-info-menu.night button {
-                background-color: #444 !important;
-                color: #ddd !important;
-                border: 1px solid #555 !important;
-            }
-            /* Menu Container Styling */
+            /* Sticky Menu Styling */
             #ticket-info-menu {
                 position: fixed;
                 bottom: 20px;
@@ -66,6 +52,30 @@
                 font-family: sans-serif;
                 line-height: 1.4;
             }
+            /* Night Mode for Menu */
+            #ticket-info-menu.night {
+                background-color: #333 !important;
+                border: 1px solid #555 !important;
+                color: #ddd !important;
+            }
+            #ticket-info-menu.night a {
+                color: #66aaff !important;
+            }
+            #ticket-info-menu.night button {
+                background-color: #444 !important;
+                color: #ddd !important;
+                border: 1px solid #555 !important;
+            }
+            /* Button Styling */
+            #ticket-info-menu button {
+                font-size: 12px;
+                cursor: pointer;
+                padding: 2px 6px;
+                border: none;
+                border-radius: 3px;
+                background-color: #eee;
+                color: #333;
+            }
         `;
         document.head.appendChild(styleTag);
 
@@ -73,21 +83,13 @@
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
 
-        // Night mode toggle button
+        // Night mode toggle button (floated to right)
         const nightModeToggle = document.createElement('button');
         nightModeToggle.textContent = "Night Mode";
-        // Float it to the right in the header area
         nightModeToggle.style.float = 'right';
-        nightModeToggle.style.fontSize = '12px';
-        nightModeToggle.style.cursor = 'pointer';
-        nightModeToggle.style.padding = '2px 6px';
-        nightModeToggle.style.border = 'none';
-        nightModeToggle.style.borderRadius = '3px';
-        nightModeToggle.style.backgroundColor = '#eee';
-        nightModeToggle.style.color = '#333';
         container.appendChild(nightModeToggle);
 
-        // Check saved night mode preference
+        // Set initial state for night mode from localStorage
         const nightModeEnabled = localStorage.getItem('fdNightMode') === 'true';
         if (nightModeEnabled) {
             container.classList.add('night');
@@ -95,32 +97,30 @@
             nightModeToggle.textContent = "Day Mode";
         }
 
-        // Toggle night mode function
-        function toggleNightMode(enable) {
-            if (enable) {
-                document.body.classList.add('fd-night-mode');
-                container.classList.add('night');
-            } else {
-                document.body.classList.remove('fd-night-mode');
-                container.classList.remove('night');
-            }
-            localStorage.setItem('fdNightMode', enable ? 'true' : 'false');
-            nightModeToggle.textContent = enable ? "Day Mode" : "Night Mode";
-        }
-
+        // Toggle night mode on click
         nightModeToggle.addEventListener('click', function() {
             const current = localStorage.getItem('fdNightMode') === 'true';
-            toggleNightMode(!current);
+            if (current) {
+                document.body.classList.remove('fd-night-mode');
+                container.classList.remove('night');
+                localStorage.setItem('fdNightMode', 'false');
+                nightModeToggle.textContent = "Night Mode";
+            } else {
+                document.body.classList.add('fd-night-mode');
+                container.classList.add('night');
+                localStorage.setItem('fdNightMode', 'true');
+                nightModeToggle.textContent = "Day Mode";
+            }
         });
 
-        // Menu title
+        // Menu Title
         const title = document.createElement('div');
         title.textContent = "Ticket Info";
         title.style.fontWeight = 'bold';
         title.style.marginBottom = '8px';
         container.appendChild(title);
 
-        // Helper: create a menu item with a copy button
+        // Helper: Create a menu item with a copy button
         function createMenuItem(labelText, valueText) {
             const itemDiv = document.createElement('div');
             itemDiv.style.marginBottom = '6px';
@@ -138,8 +138,6 @@
             const copyBtn = document.createElement('button');
             copyBtn.textContent = "Copy";
             copyBtn.style.marginLeft = '5px';
-            copyBtn.style.fontSize = '12px';
-            copyBtn.style.cursor = 'pointer';
             copyBtn.addEventListener('click', function() {
                 if (valueText) {
                     navigator.clipboard.writeText(valueText).then(() => {
@@ -155,7 +153,7 @@
             return itemDiv;
         }
 
-        // Grab ticket fields (if available)
+        // Try to grab ticket fields (if present)
         const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
         const accountValue = accountInput ? accountInput.value.trim() : "";
         const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
@@ -166,33 +164,29 @@
                            document.querySelector('input[data-test-text-field="requester[email]"]');
         const emailValue = emailInput ? emailInput.value.trim() : "";
 
-        // Append main info items
         container.appendChild(createMenuItem("Account", accountValue));
         container.appendChild(createMenuItem("Account Profile", profileValue));
         container.appendChild(createMenuItem("Sender Email", emailValue));
         container.appendChild(createMenuItem("Relevant URLs", urlsValue));
 
-        // Recent Tickets Section (last 7 days)
+        // Recent Tickets (last 7 days)
         function getRecentTickets() {
             const tickets = [];
             const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
             if (!ticketElements.length) return tickets;
             const now = new Date();
-            const thresholdDays = 7;
-            const threshold = thresholdDays * 24 * 60 * 60 * 1000;
+            const threshold = 7 * 24 * 60 * 60 * 1000;
             ticketElements.forEach(ticketEl => {
                 const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
                 if (timeEl) {
                     let dateStr = timeEl.textContent.trim().replace(',', '');
                     let ticketDate = new Date(dateStr);
-                    if (!isNaN(ticketDate)) {
-                        if ((now - ticketDate <= threshold) && (ticketDate <= now)) {
-                            const linkEl = ticketEl.querySelector('a.text__link-heading');
-                            if (linkEl) {
-                                const href = linkEl.href;
-                                const subject = linkEl.textContent.trim();
-                                tickets.push({href, subject, date: ticketDate});
-                            }
+                    if (!isNaN(ticketDate) && (now - ticketDate <= threshold) && (ticketDate <= now)) {
+                        const linkEl = ticketEl.querySelector('a.text__link-heading');
+                        if (linkEl) {
+                            const href = linkEl.href;
+                            const subject = linkEl.textContent.trim();
+                            tickets.push({href, subject, date: ticketDate});
                         }
                     }
                 }
@@ -205,11 +199,13 @@
             const divider = document.createElement('hr');
             divider.style.margin = '10px 0';
             container.appendChild(divider);
+
             const recentHeader = document.createElement('div');
             recentHeader.textContent = "Recent Tickets (last 7 days)";
             recentHeader.style.fontWeight = 'bold';
             recentHeader.style.marginBottom = '6px';
             container.appendChild(recentHeader);
+
             recentTickets.forEach(ticket => {
                 const ticketDiv = document.createElement('div');
                 ticketDiv.style.marginBottom = '6px';
@@ -231,8 +227,6 @@
 
                 const copyTicketBtn = document.createElement('button');
                 copyTicketBtn.textContent = "Copy Link";
-                copyTicketBtn.style.fontSize = '12px';
-                copyTicketBtn.style.cursor = 'pointer';
                 copyTicketBtn.addEventListener('click', function() {
                     navigator.clipboard.writeText(ticket.href).then(() => {
                         copyTicketBtn.textContent = "Copied!";
@@ -247,7 +241,7 @@
             });
         }
 
-        // Append the menu to the document body
+        // Append the menu to document.body
         document.body.appendChild(container);
     }
 
