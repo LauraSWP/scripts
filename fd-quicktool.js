@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.29
+// @version      1.30
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -79,7 +79,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // ---- 4) Draggable Function (stores position) ----
+  // ---- 4) Draggable Function (with position persistence) ----
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
     handle.onmousedown = dragMouseDown;
@@ -102,7 +102,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     function closeDragElement() {
       document.onmouseup = null;
       document.onmousemove = null;
-      // Save new position
       localStorage.setItem("multitool_position", JSON.stringify({
         top: elmnt.style.top,
         left: elmnt.style.left
@@ -144,42 +143,25 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   // ---- 7) Main MultiTool Beast Initialization ----
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("Initializing MultiTool Beast v1.33...");
+    console.log("Initializing MultiTool Beast v1.34...");
 
     initTheme();
 
-    // --- Open/Close State ---
-    const isOpen = localStorage.getItem("multitool_open") !== "false";
+    // Retrieve open/close state from localStorage; default is open.
+    const storedOpen = localStorage.getItem("multitool_open");
+    const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
-    // --- Outer wrapper (resizable) ---
-    const wrapper = document.createElement('div');
-    wrapper.id = "multitool-beast-wrapper";
-    // Check stored position; if exists, use it, else use defaults.
+    // Retrieve stored position if available.
     const storedPos = localStorage.getItem("multitool_position");
+    let defaultTop = '80px', defaultRight = '20px';
+    let posStyles = {};
     if (storedPos) {
-      const pos = JSON.parse(storedPos);
-      wrapper.style.top = pos.top;
-      wrapper.style.left = pos.left;
-      // Clear bottom/right so we use absolute coordinates.
-      wrapper.style.bottom = "";
-      wrapper.style.right = "";
-    } else {
-      wrapper.style.bottom = '80px';
-      wrapper.style.right = '20px';
+      posStyles = JSON.parse(storedPos);
     }
-    wrapper.style.position = 'fixed';
-    wrapper.style.zIndex = '9999';
-    wrapper.style.width = '360px';
-    wrapper.style.minWidth = '280px';
-    wrapper.style.minHeight = '200px';
-    wrapper.style.resize = 'both';
-    wrapper.style.overflow = 'auto';
-    wrapper.style.display = isOpen ? 'block' : 'none';
-    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // --- Open Tab Button ---
+    // ---- Open Tab Button (to reopen if closed) ----
     const openTabBtn = document.createElement('button');
-    // Use the same icon as header (tealium icon)
+    // Use the same icon as in the header.
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
     openTabBtn.style.bottom = '0px';
@@ -199,19 +181,41 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     document.body.appendChild(openTabBtn);
 
-    // --- Main Card Container using Bootstrap ---
+    // ---- Outer Wrapper (Resizable) ----
+    const wrapper = document.createElement('div');
+    wrapper.id = "multitool-beast-wrapper";
+    if (storedPos && storedPos !== "{}") {
+      wrapper.style.top = posStyles.top;
+      wrapper.style.left = posStyles.left;
+      wrapper.style.bottom = "";
+      wrapper.style.right = "";
+    } else {
+      wrapper.style.bottom = defaultTop;
+      wrapper.style.right = defaultRight;
+    }
+    wrapper.style.position = 'fixed';
+    wrapper.style.zIndex = '9999';
+    wrapper.style.width = '360px';
+    wrapper.style.minWidth = '280px';
+    wrapper.style.minHeight = '200px';
+    wrapper.style.resize = 'both';
+    wrapper.style.overflow = 'auto';
+    wrapper.style.display = isOpen ? 'block' : 'none';
+    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
+
+    // ---- Main Card Container (Bootstrap Card) ----
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
     container.classList.add('card', 'text-dark', 'bg-white');
     container.style.cursor = 'default';
     wrapper.appendChild(container);
 
-    // --- Card Header ---
+    // ---- Card Header ----
     const headerArea = document.createElement('div');
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left side: Tealium icon + title
+    // Left header: Tealium icon + title.
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -226,7 +230,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right side: Drag handle and Close button
+    // Right header: Drag handle and Close button.
     const rightHeaderDiv = document.createElement('div');
     rightHeaderDiv.classList.add('d-flex', 'align-items-center');
     const dragHandleBtn = document.createElement('button');
@@ -247,12 +251,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     rightHeaderDiv.appendChild(closeBtn);
     headerArea.appendChild(rightHeaderDiv);
 
-    // --- Card Body ---
+    // ---- Card Body ----
     const cardBody = document.createElement('div');
     cardBody.classList.add('card-body', 'p-3');
     container.appendChild(cardBody);
 
-    // Top row inside Card Body: Copy All, scroll arrows, sun/moon toggle.
+    // ---- Top Row: Copy All, Scroll Arrows, Sun/Moon Toggle ----
     const topRowDiv = document.createElement('div');
     topRowDiv.classList.add('mb-2');
     cardBody.appendChild(topRowDiv);
@@ -280,7 +284,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // Fancy sun/moon toggle switch.
+    // Sun/Moon Toggle Switch
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -293,7 +297,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     themeToggleLabel.appendChild(themeToggleSpan);
     topRowDiv.appendChild(themeToggleLabel);
 
-    // Minimal slider CSS.
     const sliderStyle = document.createElement('style');
     sliderStyle.innerHTML = `
 .switch {
@@ -332,7 +335,7 @@ input:checked + .slider:before {
       refreshCheckbox();
     });
 
-    // "Include Summary" checkbox.
+    // ---- "Include Summary" Checkbox ----
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
     const summaryCheckbox = document.createElement('input');
@@ -346,7 +349,7 @@ input:checked + .slider:before {
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Parse Ticket ID from URL, format as #ID.
+    // ---- Parse Ticket ID from URL (format as #ID) ----
     let currentTicketId = "";
     let currentTicketLink = "";
     let ticketIdVal = "";
@@ -357,7 +360,7 @@ input:checked + .slider:before {
       ticketIdVal = "#" + currentTicketId;
     }
 
-    // After delay, populate custom field data.
+    // ---- After delay, populate custom fields ----
     setTimeout(() => {
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
@@ -366,7 +369,6 @@ input:checked + .slider:before {
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
 
-      // Helper to create each field row.
       function createMenuItem(labelText, valueText) {
         const itemDiv = document.createElement('div');
         itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom');
@@ -376,9 +378,7 @@ input:checked + .slider:before {
         itemDiv.appendChild(label);
         if (valueText) {
           const lowerVal = valueText.trim().toLowerCase();
-          if (lowerVal === 'account' || lowerVal === 'profile') {
-            valueText = "";
-          }
+          if (lowerVal === 'account' || lowerVal === 'profile') { valueText = ""; }
         }
         let valueEl;
         if (labelText.toLowerCase() === "relevant urls" && valueText && (valueText.startsWith("http") || valueText.startsWith("www"))) {
@@ -414,7 +414,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // Recent Tickets (last 7 days), excluding current.
+      // ---- Recent Tickets (last 7 days) ----
       function getRecentTickets() {
         const tickets = [];
         const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -445,13 +445,11 @@ input:checked + .slider:before {
       const divider = document.createElement('hr');
       divider.classList.add('my-2');
       cardBody.appendChild(divider);
-
       const recentHeader = document.createElement('div');
       recentHeader.textContent = "Recent Tickets (last 7 days)";
       recentHeader.style.fontWeight = 'bold';
       recentHeader.classList.add('mb-2');
       cardBody.appendChild(recentHeader);
-
       const recentTickets = getRecentTickets();
       if (recentTickets.length) {
         recentTickets.forEach(ticket => {
@@ -464,12 +462,8 @@ input:checked + .slider:before {
           ticketLink.classList.add('mr-2');
           ticketLink.style.color = '#007bff';
           ticketLink.style.textDecoration = 'none';
-          ticketLink.addEventListener('mouseover', () => {
-            ticketLink.style.textDecoration = 'underline';
-          });
-          ticketLink.addEventListener('mouseout', () => {
-            ticketLink.style.textDecoration = 'none';
-          });
+          ticketLink.addEventListener('mouseover', () => { ticketLink.style.textDecoration = 'underline'; });
+          ticketLink.addEventListener('mouseout', () => { ticketLink.style.textDecoration = 'none'; });
           ticketDiv.appendChild(ticketLink);
           const copyTicketBtn = document.createElement('button');
           copyTicketBtn.textContent = "Copy Link";
@@ -492,12 +486,13 @@ input:checked + .slider:before {
       }
     }, 1500);
 
-    // "Copy All" button logic – formatted snippet for Slack/Jira.
+    // ---- "Copy All" Button Logic (formatted for Slack/Markdown) ----
     copyAllBtn.addEventListener('click', function() {
       const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
       const currentID = matchUrl ? matchUrl[1] : "";
       const link = window.location.origin + "/a/tickets/" + currentID;
-      const ticketPart = `**Ticket ID**: [#${currentID}|${link}]\n`;
+      // Use Slack/Markdown format: [#ID](URL)
+      const ticketPart = `**Ticket ID**: [#${currentID}](${link})\n`;
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       let acc = getFieldValue(accountInput);
       if (acc && acc.trim().toLowerCase() === "account") acc = "";
@@ -526,11 +521,10 @@ input:checked + .slider:before {
       });
     });
 
-    // Append wrapper to document body and enable drag.
+    // ---- Append Wrapper & Enable Dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-
-    console.log("MultiTool Beast v1.33 loaded!");
+    console.log("MultiTool Beast v1.34 loaded!");
   }
 
   if (document.readyState === 'loading') {
