@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.31
+// @version      1.32
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -10,24 +10,23 @@
 // @grant        none
 // ==/UserScript==
 
-
 (function() {
   'use strict';
 
-  // ---- 0) Only run on direct ticket pages (e.g. /a/tickets/259532) ----
+  // ----- 0) Only run on direct ticket pages (/a/tickets/NNNN) -----
   const path = window.location.pathname;
   if (!/^\/a\/tickets\/\d+$/.test(path)) {
     console.log("MultiTool Beast: Not a ticket page. Aborting.");
     return;
   }
 
-  // ---- 1) Inject Bootstrap CSS ----
+  // ----- 1) Inject Bootstrap CSS -----
   const bootstrapLink = document.createElement('link');
   bootstrapLink.rel = 'stylesheet';
   bootstrapLink.href = 'https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css';
   document.head.appendChild(bootstrapLink);
 
-  // ---- 2) Minimal Dark Mode CSS Overrides ----
+  // ----- 2) Minimal Dark Mode CSS Overrides -----
   const nightModeCSS = `
 /* Minimal Dark Mode Overrides */
 body, html, .page, .main-content {
@@ -58,7 +57,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (styleEl) styleEl.remove();
   }
 
-  // ---- 3) Theme Toggle Functions ----
+  // ----- 3) Theme Toggle Functions -----
   function setTheme(themeName) {
     localStorage.setItem('fdTheme', themeName);
   }
@@ -80,7 +79,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // ---- 4) Draggable Function (with position persistence) ----
+  // ----- 4) Draggable Function (with position persistence) -----
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
     handle.onmousedown = dragMouseDown;
@@ -110,7 +109,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // ---- 5) Field Value Helper ----
+  // ----- 5) Field Value Helper -----
   function getFieldValue(inputElement) {
     if (!inputElement) return "";
     let val = inputElement.value;
@@ -127,54 +126,56 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     return val ? val.trim() : "";
   }
 
-  // ---- 6) Summary Helper ----
+  // ----- 6) Summary Helper -----
   function getSummary() {
     const noteDiv = document.querySelector('.ticket_note[data-note-id]');
     return noteDiv ? noteDiv.textContent.trim() : "";
   }
 
-  // ---- 7) Format CARR as Currency ----
+  // ----- 7) Format Currency (e.g. 300000 becomes 300.000$) -----
   function formatCurrency(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
   }
 
-  // ---- 8) Fetch and Display CARR from Company Profile ----
-  function fetchCARR(cardBody) {
+  // ----- 8) Fetch CARR from Company Profile using DOMParser -----
+  function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
     if (companyElem) {
       const companyURL = companyElem.href;
       fetch(companyURL, { credentials: 'include' })
         .then(response => response.text())
         .then(htmlText => {
-          // Look for element with data-test-field-content="CARR (converted)" and capture its inner number.
-          const carrMatch = htmlText.match(/data-test-field-content="CARR \(converted\)"[^>]*>\s*<div[^>]*>\s*([\d,\.]+)\s*<\/div>/i);
-          let carrValue = carrMatch ? carrMatch[1].replace(/,/g, "") : "N/A";
-          if (carrValue !== "N/A") {
-            carrValue = formatCurrency(carrValue);
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(htmlText, "text/html");
+          // Adjust this selector if needed. It looks for the div inside the element with data-test-field-content="CARR (converted)"
+          const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] div');
+          let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
+          if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
+            carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
           }
-          cardBody.appendChild(createMenuItem("CARR", carrValue));
+          callback(carrValue);
         })
         .catch(err => {
           console.error("Fetching company data failed:", err);
-          cardBody.appendChild(createMenuItem("CARR", "N/A"));
+          callback("N/A");
         });
     } else {
-      cardBody.appendChild(createMenuItem("CARR", "N/A"));
+      callback("N/A");
     }
   }
 
-  // ---- 9) Main MultiTool Beast Initialization ----
+  // ----- 9) Main MultiTool Beast Initialization -----
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
     console.log("Initializing MultiTool Beast v1.34.3...");
 
     initTheme();
 
-    // Retrieve open/close state; default open.
+    // Retrieve open/close state (default open)
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
-    // Retrieve stored position if available.
+    // Retrieve stored position if available
     const storedPos = localStorage.getItem("multitool_position");
     let posStyles = {};
     if (storedPos) { posStyles = JSON.parse(storedPos); }
@@ -234,7 +235,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left header: Tealium icon + Title.
+    // Left header: Tealium icon + Title
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -249,7 +250,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right header: Drag handle and Close button.
+    // Right header: Drag handle and Close button
     const rightHeaderDiv = document.createElement('div');
     rightHeaderDiv.classList.add('d-flex', 'align-items-center');
     const dragHandleBtn = document.createElement('button');
@@ -303,7 +304,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // Sun/Moon Toggle
+    // Sun/Moon Toggle Switch
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -343,7 +344,6 @@ input:checked + .slider:before {
 }
 `;
     document.head.appendChild(sliderStyle);
-
     function refreshCheckbox() {
       const stored = localStorage.getItem('fdTheme');
       themeToggleInput.checked = stored !== 'theme-dark';
@@ -431,7 +431,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
       cardBody.appendChild(createMenuItem("Account", accountVal));
 
-      // ---- New Button: Copy Account/Profile (format "accountname/profilename") ----
+      // ---- New Button: Copy Account/Profile in "accountname/profilename" format ----
       const copyAccProfBtn = document.createElement('button');
       copyAccProfBtn.textContent = "Copy Account/Profile";
       copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2');
@@ -450,27 +450,9 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
       // ---- Fetch and display CARR from Company Profile ----
-      const companyElem = document.querySelector('a[href*="/a/companies/"]');
-      if (companyElem) {
-        const companyURL = companyElem.href;
-        fetch(companyURL, { credentials: 'include' })
-          .then(response => response.text())
-          .then(htmlText => {
-            // Regex to capture the CARR value from the company page.
-            const carrMatch = htmlText.match(/data-test-field-content="CARR \(converted\)"[^>]*>\s*<div[^>]*>\s*([\d,\.]+)\s*<\/div>/i);
-            let carrValue = carrMatch ? carrMatch[1].replace(/,/g, "") : "N/A";
-            if (carrValue !== "N/A") {
-              carrValue = formatCurrency(carrValue);
-            }
-            cardBody.appendChild(createMenuItem("CARR", carrValue));
-          })
-          .catch(err => {
-            console.error("Fetching company data failed:", err);
-            cardBody.appendChild(createMenuItem("CARR", "N/A"));
-          });
-      } else {
-        cardBody.appendChild(createMenuItem("CARR", "N/A"));
-      }
+      fetchCARR(function(carrValue) {
+        cardBody.appendChild(createMenuItem("CARR", carrValue));
+      });
 
       // ---- Recent Tickets (last 7 days) ----
       function getRecentTickets() {
