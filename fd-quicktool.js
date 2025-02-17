@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.14
-// @description  Appends a sticky menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. Uses getAttribute for account and profile fields.
+// @version      1.15
+// @description  Appends a sticky menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. For account and profile fields, falls back to placeholder if value is empty.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -154,13 +154,24 @@
             return itemDiv;
         }
 
-        // For account and profile fields, use getAttribute('value')
-        const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-        const accountValue = accountInput ? (accountInput.getAttribute('value') || "").trim() : "";
-        const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-        const profileValue = profileInput ? (profileInput.getAttribute('value') || "").trim() : "";
+        // Function to extract value from an input element using value or placeholder fallback
+        function getFieldValue(inputElement) {
+            if (!inputElement) return "";
+            let val = inputElement.value.trim();
+            if (!val) {
+                // Fallback to placeholder if value is empty
+                val = (inputElement.getAttribute('placeholder') || "").trim();
+            }
+            return val;
+        }
 
-        // For URLs and email, we can continue to use .value (or getAttribute if needed)
+        // For account and profile fields, use the fallback function
+        const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
+        const accountValue = getFieldValue(accountInput);
+        const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
+        const profileValue = getFieldValue(profileInput);
+
+        // For URLs and email, we can use .value (or similar fallback if needed)
         const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
         const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
         const emailInput = document.querySelector('input[name="requester[email]"]') ||
@@ -244,7 +255,7 @@
             });
         }
 
-        // Append the menu to the document body
+        // Append the menu to the document body (sticky at bottom-right)
         document.body.appendChild(container);
         console.log("Ticket info menu appended to document.body");
     }
