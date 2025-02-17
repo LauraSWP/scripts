@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.10
-// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle (dark mode CSS injected). Uses setInterval to wait for the sidebar in SPA.
+// @version      1.11
+// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode. Appended to document.body.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -15,13 +15,9 @@
 
     function initTool() {
         // Avoid duplicate insertion
-        if (document.getElementById("ticket-info-menu")) {
-            console.log("Ticket info menu already exists.");
-            return;
-        }
-        console.log("Initializing ticket info menu...");
+        if (document.getElementById("ticket-info-menu")) return;
 
-        // Inject CSS for global dark mode on Freshdesk and for our menu
+        // Inject CSS for dark mode on Freshdesk and for our menu
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
             /* Global Dark Mode for Freshdesk */
@@ -40,7 +36,7 @@
                 color: #e0e0e0 !important;
                 border-color: #333 !important;
             }
-            /* Sidebar Menu Dark Mode Overrides */
+            /* Menu Dark Mode Overrides */
             #ticket-info-menu.night {
                 background-color: #333 !important;
                 border: 1px solid #555 !important;
@@ -54,28 +50,33 @@
                 color: #ddd !important;
                 border: 1px solid #555 !important;
             }
+            /* Menu Container Styling */
+            #ticket-info-menu {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background-color: #fff;
+                border: 1px solid #ccc;
+                padding: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                z-index: 9999;
+                font-size: 14px;
+                max-width: 300px;
+                border-radius: 5px;
+                font-family: sans-serif;
+                line-height: 1.4;
+            }
         `;
         document.head.appendChild(styleTag);
 
         // Create the container for our menu
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
-        // For sidebar insertion, use static positioning
-        container.style.position = 'static';
-        container.style.margin = '10px 0';
-        container.style.backgroundColor = '#fff';
-        container.style.border = '1px solid #ccc';
-        container.style.padding = '10px';
-        container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-        container.style.fontSize = '14px';
-        container.style.maxWidth = '300px';
-        container.style.borderRadius = '5px';
-        container.style.fontFamily = 'sans-serif';
-        container.style.lineHeight = '1.4';
 
-        // Night mode toggle button (floated to the right)
+        // Night mode toggle button
         const nightModeToggle = document.createElement('button');
         nightModeToggle.textContent = "Night Mode";
+        // Float it to the right in the header area
         nightModeToggle.style.float = 'right';
         nightModeToggle.style.fontSize = '12px';
         nightModeToggle.style.cursor = 'pointer';
@@ -86,7 +87,7 @@
         nightModeToggle.style.color = '#333';
         container.appendChild(nightModeToggle);
 
-        // Check localStorage for saved night mode preference
+        // Check saved night mode preference
         const nightModeEnabled = localStorage.getItem('fdNightMode') === 'true';
         if (nightModeEnabled) {
             container.classList.add('night');
@@ -94,6 +95,7 @@
             nightModeToggle.textContent = "Day Mode";
         }
 
+        // Toggle night mode function
         function toggleNightMode(enable) {
             if (enable) {
                 document.body.classList.add('fd-night-mode');
@@ -111,7 +113,7 @@
             toggleNightMode(!current);
         });
 
-        // Title of the menu
+        // Menu title
         const title = document.createElement('div');
         title.textContent = "Ticket Info";
         title.style.fontWeight = 'bold';
@@ -122,17 +124,17 @@
         function createMenuItem(labelText, valueText) {
             const itemDiv = document.createElement('div');
             itemDiv.style.marginBottom = '6px';
-            
+
             const label = document.createElement('span');
             label.textContent = labelText + ": ";
             label.style.fontWeight = 'bold';
             itemDiv.appendChild(label);
-            
+
             const value = document.createElement('span');
             value.textContent = valueText || "N/A";
             value.style.userSelect = 'text';
             itemDiv.appendChild(value);
-            
+
             const copyBtn = document.createElement('button');
             copyBtn.textContent = "Copy";
             copyBtn.style.marginLeft = '5px';
@@ -149,7 +151,7 @@
                 }
             });
             itemDiv.appendChild(copyBtn);
-            
+
             return itemDiv;
         }
 
@@ -160,7 +162,8 @@
         const profileValue = profileInput ? profileInput.value.trim() : "";
         const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
         const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
-        const emailInput = document.querySelector('input[name="requester[email]"]') || document.querySelector('input[data-test-text-field="requester[email]"]');
+        const emailInput = document.querySelector('input[name="requester[email]"]') ||
+                           document.querySelector('input[data-test-text-field="requester[email]"]');
         const emailValue = emailInput ? emailInput.value.trim() : "";
 
         // Append main info items
@@ -169,7 +172,7 @@
         container.appendChild(createMenuItem("Sender Email", emailValue));
         container.appendChild(createMenuItem("Relevant URLs", urlsValue));
 
-        // ---------- Recent Tickets Section ----------
+        // Recent Tickets Section (last 7 days)
         function getRecentTickets() {
             const tickets = [];
             const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -177,7 +180,6 @@
             const now = new Date();
             const thresholdDays = 7;
             const threshold = thresholdDays * 24 * 60 * 60 * 1000;
-            
             ticketElements.forEach(ticketEl => {
                 const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
                 if (timeEl) {
@@ -203,13 +205,11 @@
             const divider = document.createElement('hr');
             divider.style.margin = '10px 0';
             container.appendChild(divider);
-
             const recentHeader = document.createElement('div');
             recentHeader.textContent = "Recent Tickets (last 7 days)";
             recentHeader.style.fontWeight = 'bold';
             recentHeader.style.marginBottom = '6px';
             container.appendChild(recentHeader);
-
             recentTickets.forEach(ticket => {
                 const ticketDiv = document.createElement('div');
                 ticketDiv.style.marginBottom = '6px';
@@ -247,35 +247,13 @@
             });
         }
 
-        // Determine insertion point: sidebar or fallback
-        const sidebarTarget = document.getElementById('widget-sidebar-content');
-        if (sidebarTarget) {
-            console.log("Sidebar found. Inserting ticket info menu.");
-            sidebarTarget.appendChild(container);
-        } else {
-            console.log("Sidebar not found. Inserting ticket info menu into document body.");
-            document.body.appendChild(container);
-        }
-    }
-
-    // Use setInterval to wait for the sidebar element (in case Freshdesk is an SPA)
-    function waitForSidebar() {
-        let attempts = 0;
-        const maxAttempts = 30; // Try for 30 seconds max
-        const intervalId = setInterval(() => {
-            attempts++;
-            const sidebar = document.getElementById('widget-sidebar-content');
-            console.log("Attempt", attempts, "sidebar found:", sidebar);
-            if (sidebar || attempts >= maxAttempts) {
-                clearInterval(intervalId);
-                initTool();
-            }
-        }, 1000);
+        // Append the menu to the document body
+        document.body.appendChild(container);
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', waitForSidebar);
+        document.addEventListener('DOMContentLoaded', initTool);
     } else {
-        waitForSidebar();
+        initTool();
     }
 })();
