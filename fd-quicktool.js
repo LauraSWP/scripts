@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.7
-// @description  Adds a sticky menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode.
+// @version      1.8
+// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode. Now inserted into the sidebar.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,7 +14,7 @@
     'use strict';
 
     function initTool() {
-        // Inject CSS for global dark mode on Freshdesk and the sticky menu
+        // Inject CSS for global dark mode on Freshdesk and for our menu
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
             /* Global Dark Mode for Freshdesk */
@@ -33,7 +33,7 @@
                 color: #e0e0e0 !important;
                 border-color: #333 !important;
             }
-            /* Sticky Menu Dark Mode Overrides */
+            /* Sidebar Menu Dark Mode Overrides */
             #ticket-info-menu.night {
                 background-color: #333 !important;
                 border: 1px solid #555 !important;
@@ -50,17 +50,16 @@
         `;
         document.head.appendChild(styleTag);
 
-        // Create the sticky container for our menu
+        // Create the container for our menu
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
-        container.style.position = 'fixed';
-        container.style.bottom = '20px';
-        container.style.right = '20px';
+        // We'll set the default styles assuming sidebar insertion (static position)
+        container.style.position = 'static';
+        container.style.margin = '10px 0';
         container.style.backgroundColor = '#fff';
         container.style.border = '1px solid #ccc';
         container.style.padding = '10px';
         container.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-        container.style.zIndex = '9999';
         container.style.fontSize = '14px';
         container.style.maxWidth = '300px';
         container.style.borderRadius = '5px';
@@ -70,9 +69,8 @@
         // Night mode toggle button (positioned in the top-right corner of the menu)
         const nightModeToggle = document.createElement('button');
         nightModeToggle.textContent = "Night Mode";
-        nightModeToggle.style.position = 'absolute';
-        nightModeToggle.style.top = '5px';
-        nightModeToggle.style.right = '5px';
+        // For sidebar, we'll use relative positioning inside the container
+        nightModeToggle.style.float = 'right';
         nightModeToggle.style.fontSize = '12px';
         nightModeToggle.style.cursor = 'pointer';
         nightModeToggle.style.padding = '2px 6px';
@@ -151,7 +149,7 @@
             return itemDiv;
         }
 
-        // Grab ticket fields based on your selectors (if they exist)
+        // Grab ticket fields (if available)
         const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
         const accountValue = accountInput ? accountInput.value.trim() : "";
 
@@ -249,11 +247,16 @@
             });
         }
 
-        // Append the sticky menu to the document body
-        document.body.appendChild(container);
+        // Insert the menu into the sidebar if possible
+        const sidebarTarget = document.getElementById('widget-sidebar-content');
+        if (sidebarTarget) {
+            sidebarTarget.appendChild(container);
+        } else {
+            // Fallback: append to document.body if sidebar not found
+            document.body.appendChild(container);
+        }
     }
 
-    // Initialize immediately if ready, or wait for DOMContentLoaded
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initTool);
     } else {
