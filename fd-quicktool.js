@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Freshdesk Ticket Info Menu with Night Mode & Recent Tickets (7-day threshold)
+// @name         Freshdesk Ticket Info Menu with Draggable Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.17
-// @description  Appends a sticky menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. For account and profile fields, falls back to placeholder if value is empty.
+// @version      1.15
+// @description  Appends a sticky, draggable menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. It uses multiple fallbacks to extract values.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -52,6 +52,7 @@
                 border-radius: 5px;
                 font-family: sans-serif;
                 line-height: 1.4;
+                cursor: move;
             }
             /* Night Mode for Menu */
             #ticket-info-menu.night {
@@ -114,12 +115,16 @@
             }
         });
 
-        // Menu Title
+        // Menu Title (this will also serve as the drag handle)
         const title = document.createElement('div');
         title.textContent = "Ticket Info";
         title.style.fontWeight = 'bold';
         title.style.marginBottom = '8px';
+        title.style.cursor = 'move';
         container.appendChild(title);
+
+        // Make the container draggable using the title as the handle
+        makeDraggable(container, title);
 
         // Helper: Create a menu item with a copy button
         function createMenuItem(labelText, valueText) {
@@ -154,24 +159,29 @@
             return itemDiv;
         }
 
-        // Function to extract value from an input element using value or placeholder fallback
+        // Helper: Get field value with multiple fallbacks
         function getFieldValue(inputElement) {
             if (!inputElement) return "";
-            let val = inputElement.value.trim();
-            if (!val) {
-                // Fallback to placeholder if value is empty
-                val = (inputElement.getAttribute('placeholder') || "").trim();
+            let val = inputElement.value;
+            if (!val || val.trim() === "") {
+                val = inputElement.getAttribute('value');
             }
-            return val;
+            if (!val || val.trim() === "") {
+                val = inputElement.defaultValue;
+            }
+            if (!val || val.trim() === "") {
+                val = inputElement.getAttribute('placeholder');
+            }
+            return val ? val.trim() : "";
         }
 
-        // For account and profile fields, use the fallback function
+        // For account and profile fields, use getFieldValue
         const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
         const accountValue = getFieldValue(accountInput);
         const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
         const profileValue = getFieldValue(profileInput);
 
-        // For URLs and email, we can use .value (or similar fallback if needed)
+        // For URLs and email, use .value
         const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
         const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
         const emailInput = document.querySelector('input[name="requester[email]"]') ||
@@ -255,9 +265,50 @@
             });
         }
 
-        // Append the menu to the document body (sticky at bottom-right)
+        // Append the menu to document.body
         document.body.appendChild(container);
         console.log("Ticket info menu appended to document.body");
+
+        // Convert fixed positioning to allow dragging by setting initial left/top
+        const rect = container.getBoundingClientRect();
+        container.style.left = rect.left + "px";
+        container.style.top = rect.top + "px";
+        container.style.right = "auto";
+        container.style.bottom = "auto";
+    }
+
+    // Draggable functionality using the provided handle
+    function makeDraggable(elmnt, handle) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        handle.onmousedown = dragMouseDown;
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // Get the mouse cursor position at startup:
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // Calculate the new cursor position:
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            // Set the element's new position:
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
     }
 
     if (document.readyState === 'loading') {
