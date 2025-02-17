@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Draggable Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.15
+// @version      1.18
 // @description  Appends a sticky, draggable menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. It uses multiple fallbacks to extract values.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
