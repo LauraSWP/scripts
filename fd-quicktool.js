@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.32
+// @version      1.33
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,7 +13,7 @@
 (function() {
   'use strict';
 
-  // ----- 0) Only run on direct ticket pages (/a/tickets/NNNN) -----
+  // ----- 0) Only run on direct ticket pages (e.g. /a/tickets/259532) -----
   const path = window.location.pathname;
   if (!/^\/a\/tickets\/\d+$/.test(path)) {
     console.log("MultiTool Beast: Not a ticket page. Aborting.");
@@ -132,23 +132,24 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     return noteDiv ? noteDiv.textContent.trim() : "";
   }
 
-  // ----- 7) Format Currency (e.g. 300000 becomes 300.000$) -----
+  // ----- 7) Format Currency (e.g., 300000 becomes 300.000$) -----
   function formatCurrency(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
   }
 
   // ----- 8) Fetch CARR from Company Profile using DOMParser -----
   function fetchCARR(callback) {
+    // Find the company link from the ticket page (e.g., href="/a/companies/36000307093")
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
     if (companyElem) {
-      const companyURL = companyElem.href;
+      const companyURL = window.location.origin + companyElem.getAttribute('href');
       fetch(companyURL, { credentials: 'include' })
         .then(response => response.text())
         .then(htmlText => {
           const parser = new DOMParser();
           const doc = parser.parseFromString(htmlText, "text/html");
-          // Adjust this selector if needed. It looks for the div inside the element with data-test-field-content="CARR (converted)"
-          const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] div');
+          // Look for the element that contains the CARR value:
+          const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] .text__content');
           let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
           if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
             carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
@@ -167,11 +168,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   // ----- 9) Main MultiTool Beast Initialization -----
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("Initializing MultiTool Beast v1.34.3...");
+    console.log("Initializing MultiTool Beast v1.34.4...");
 
     initTheme();
 
-    // Retrieve open/close state (default open)
+    // Retrieve open/close state (default is open)
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
@@ -235,7 +236,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left header: Tealium icon + Title
+    // Left header: Tealium icon + Title.
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -250,7 +251,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right header: Drag handle and Close button
+    // Right header: Drag handle and Close button.
     const rightHeaderDiv = document.createElement('div');
     rightHeaderDiv.classList.add('d-flex', 'align-items-center');
     const dragHandleBtn = document.createElement('button');
@@ -431,7 +432,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
       cardBody.appendChild(createMenuItem("Account", accountVal));
 
-      // ---- New Button: Copy Account/Profile in "accountname/profilename" format ----
+      // ---- New Button: Copy Account/Profile (format "accountname/profilename") ----
       const copyAccProfBtn = document.createElement('button');
       copyAccProfBtn.textContent = "Copy Account/Profile";
       copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2');
@@ -485,13 +486,11 @@ input:checked + .slider:before {
       const divider = document.createElement('hr');
       divider.classList.add('my-2');
       cardBody.appendChild(divider);
-
       const recentHeader = document.createElement('div');
       recentHeader.textContent = "Recent Tickets (last 7 days)";
       recentHeader.style.fontWeight = 'bold';
       recentHeader.classList.add('mb-2');
       cardBody.appendChild(recentHeader);
-
       const recentTickets = getRecentTickets();
       if (recentTickets.length) {
         recentTickets.forEach(ticket => {
@@ -565,7 +564,7 @@ input:checked + .slider:before {
     // ---- Append Wrapper & Enable Dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-    console.log("MultiTool Beast v1.34.3 loaded!");
+    console.log("MultiTool Beast v1.34.4 loaded!");
   }
 
   if (document.readyState === 'loading') {
