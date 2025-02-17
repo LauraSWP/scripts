@@ -3,9 +3,9 @@
 // @namespace    https://github.com/LauraSWP/scripts
 // @version      1.5
 // @description  Adds a sticky menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode.
-// @homepageURL  https://github.com/YourUsername/FreshdeskTicketInfoMenu
-// @updateURL    https://github.com/LauraSWP/scripts
-// @downloadURL  https://github.com/LauraSWP/scripts
+// @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
+// @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
+// @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @match        *://*.freshdesk.com/*
 // @grant        none
 // ==/UserScript==
