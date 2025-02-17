@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.12
-// @description  Appends a sticky menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. Always appended to body.
+// @version      1.13
+// @description  Inserts a sticky menu (with ticket info, copy buttons, recent tickets, and a night mode toggle) into Freshdesk. Target: element with id "ember409" if present, else document.body.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -16,8 +16,9 @@
     function initTool() {
         // Avoid duplicate insertion
         if (document.getElementById("ticket-info-menu")) return;
+        console.log("Initializing ticket info menu...");
 
-        // Inject CSS for dark mode and our sticky menu
+        // Inject CSS for dark mode and our menu styling
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
             /* Global Dark Mode Overrides */
@@ -36,7 +37,7 @@
                 color: #e0e0e0 !important;
                 border-color: #333 !important;
             }
-            /* Sticky Menu Styling */
+            /* Menu Styling */
             #ticket-info-menu {
                 position: fixed;
                 bottom: 20px;
@@ -89,7 +90,7 @@
         nightModeToggle.style.float = 'right';
         container.appendChild(nightModeToggle);
 
-        // Set initial state for night mode from localStorage
+        // Set initial night mode state from localStorage
         const nightModeEnabled = localStorage.getItem('fdNightMode') === 'true';
         if (nightModeEnabled) {
             container.classList.add('night');
@@ -153,7 +154,7 @@
             return itemDiv;
         }
 
-        // Try to grab ticket fields (if present)
+        // Grab ticket fields (if available)
         const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
         const accountValue = accountInput ? accountInput.value.trim() : "";
         const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
@@ -241,8 +242,16 @@
             });
         }
 
-        // Append the menu to document.body
-        document.body.appendChild(container);
+        // Insert the container into the element with id "ember409" if it exists,
+        // otherwise append to document.body.
+        const target = document.getElementById("ember409");
+        if (target) {
+            target.appendChild(container);
+            console.log("Ticket info menu inserted into #ember409");
+        } else {
+            document.body.appendChild(container);
+            console.log("Ticket info menu appended to document.body");
+        }
     }
 
     if (document.readyState === 'loading') {
