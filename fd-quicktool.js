@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.5
+// @version      1.6
 // @description  Adds a sticky menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,22 +13,7 @@
 (function() {
     'use strict';
 
-    // Toggle function to add/remove dark mode CSS classes
-    function toggleNightMode(enable) {
-        if (enable) {
-            document.body.classList.add('fd-night-mode');
-            container.classList.add('night');
-        } else {
-            document.body.classList.remove('fd-night-mode');
-            container.classList.remove('night');
-        }
-        localStorage.setItem('fdNightMode', enable ? 'true' : 'false');
-        nightModeToggle.textContent = enable ? "Day Mode" : "Night Mode";
-    }
-
-    // Wait for the page to fully load
     window.addEventListener('load', function() {
-
         // Inject CSS for global dark mode on Freshdesk and the sticky menu
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
@@ -103,6 +88,19 @@
             container.classList.add('night');
             document.body.classList.add('fd-night-mode');
             nightModeToggle.textContent = "Day Mode";
+        }
+
+        // Define the toggleNightMode function now that container & nightModeToggle are in scope
+        function toggleNightMode(enable) {
+            if (enable) {
+                document.body.classList.add('fd-night-mode');
+                container.classList.add('night');
+            } else {
+                document.body.classList.remove('fd-night-mode');
+                container.classList.remove('night');
+            }
+            localStorage.setItem('fdNightMode', enable ? 'true' : 'false');
+            nightModeToggle.textContent = enable ? "Day Mode" : "Night Mode";
         }
 
         // Set up the toggle event
