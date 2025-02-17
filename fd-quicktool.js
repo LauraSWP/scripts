@@ -131,4 +131,132 @@
             value.style.userSelect = 'text';
             itemDiv.appendChild(value);
             
-            const copyBtn = document.createElement(
+            const copyBtn = document.createElement('button');
+            copyBtn.textContent = "Copy";
+            copyBtn.style.marginLeft = '5px';
+            copyBtn.style.fontSize = '12px';
+            copyBtn.style.cursor = 'pointer';
+            copyBtn.addEventListener('click', function() {
+                if (valueText) {
+                    navigator.clipboard.writeText(valueText).then(() => {
+                        copyBtn.textContent = "Copied!";
+                        setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+                    }).catch(err => {
+                        console.error("Copy failed:", err);
+                    });
+                }
+            });
+            itemDiv.appendChild(copyBtn);
+            
+            return itemDiv;
+        }
+
+        // Grab ticket fields based on your selectors (if they exist)
+        const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
+        const accountValue = accountInput ? accountInput.value.trim() : "";
+
+        const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
+        const profileValue = profileInput ? profileInput.value.trim() : "";
+
+        const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
+        const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
+
+        const emailInput = document.querySelector('input[name="requester[email]"]') || document.querySelector('input[data-test-text-field="requester[email]"]');
+        const emailValue = emailInput ? emailInput.value.trim() : "";
+
+        // Append main info items
+        container.appendChild(createMenuItem("Account", accountValue));
+        container.appendChild(createMenuItem("Account Profile", profileValue));
+        container.appendChild(createMenuItem("Sender Email", emailValue));
+        container.appendChild(createMenuItem("Relevant URLs", urlsValue));
+
+        // ---------- Recent Tickets Section ----------
+        function getRecentTickets() {
+            const tickets = [];
+            const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
+            if (!ticketElements.length) return tickets;
+            const now = new Date();
+            const thresholdDays = 7;
+            const threshold = thresholdDays * 24 * 60 * 60 * 1000;
+            
+            ticketElements.forEach(ticketEl => {
+                const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
+                if (timeEl) {
+                    let dateStr = timeEl.textContent.trim();
+                    dateStr = dateStr.replace(',', '');
+                    let ticketDate = new Date(dateStr);
+                    if (!isNaN(ticketDate)) {
+                        if ((now - ticketDate <= threshold) && (ticketDate <= now)) {
+                            const linkEl = ticketEl.querySelector('a.text__link-heading');
+                            if (linkEl) {
+                                const href = linkEl.href;
+                                const subject = linkEl.textContent.trim();
+                                tickets.push({href, subject, date: ticketDate});
+                            }
+                        }
+                    }
+                }
+            });
+            return tickets;
+        }
+
+        const recentTickets = getRecentTickets();
+        if (recentTickets.length) {
+            const divider = document.createElement('hr');
+            divider.style.margin = '10px 0';
+            container.appendChild(divider);
+
+            const recentHeader = document.createElement('div');
+            recentHeader.textContent = "Recent Tickets (last 7 days)";
+            recentHeader.style.fontWeight = 'bold';
+            recentHeader.style.marginBottom = '6px';
+            container.appendChild(recentHeader);
+
+            recentTickets.forEach(ticket => {
+                const ticketDiv = document.createElement('div');
+                ticketDiv.style.marginBottom = '6px';
+
+                const ticketLink = document.createElement('a');
+                ticketLink.href = ticket.href;
+                ticketLink.textContent = ticket.subject;
+                ticketLink.target = '_blank';
+                ticketLink.style.color = '#007bff';
+                ticketLink.style.textDecoration = 'none';
+                ticketLink.style.marginRight = '5px';
+                ticketLink.addEventListener('mouseover', () => {
+                    ticketLink.style.textDecoration = 'underline';
+                });
+                ticketLink.addEventListener('mouseout', () => {
+                    ticketLink.style.textDecoration = 'none';
+                });
+                ticketDiv.appendChild(ticketLink);
+
+                const copyTicketBtn = document.createElement('button');
+                copyTicketBtn.textContent = "Copy Link";
+                copyTicketBtn.style.fontSize = '12px';
+                copyTicketBtn.style.cursor = 'pointer';
+                copyTicketBtn.addEventListener('click', function() {
+                    navigator.clipboard.writeText(ticket.href).then(() => {
+                        copyTicketBtn.textContent = "Copied!";
+                        setTimeout(() => { copyTicketBtn.textContent = "Copy Link"; }, 2000);
+                    }).catch(err => {
+                        console.error("Copy failed:", err);
+                    });
+                });
+                ticketDiv.appendChild(copyTicketBtn);
+
+                container.appendChild(ticketDiv);
+            });
+        }
+
+        // Append the sticky menu to the document body
+        document.body.appendChild(container);
+    }
+
+    // Initialize immediately if ready, or wait for DOMContentLoaded
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTool);
+    } else {
+        initTool();
+    }
+})();
