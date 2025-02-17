@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Draggable Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.18
-// @description  Appends a sticky, draggable menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. It uses multiple fallbacks to extract values.
+// @version      1.19
+// @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. Attempts multiple fallbacks (including Ember.get) to extract custom field values.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,12 +13,67 @@
 (function() {
     'use strict';
 
+    // Enhanced helper to extract a field's value using multiple fallbacks
+    function getFieldValue(inputElement) {
+        if (!inputElement) return "";
+        let val = inputElement.value;
+        if (!val || val.trim() === "") {
+            val = inputElement.getAttribute('value');
+        }
+        if (!val || val.trim() === "") {
+            val = inputElement.getAttribute('placeholder');
+        }
+        // Try Ember's getter if available
+        if ((!val || val.trim() === "") && window.Ember) {
+            try {
+                val = Ember.get(inputElement, 'value');
+            } catch(e) {
+                console.error("Ember.get failed:", e);
+            }
+        }
+        // Fallback: check parent element's innerText
+        if (!val || val.trim() === "") {
+            let parent = inputElement.parentElement;
+            if (parent) {
+                val = parent.innerText;
+            }
+        }
+        return val ? val.trim() : "";
+    }
+
+    // Draggable functionality using a handle
+    function makeDraggable(elmnt, handle) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        handle.onmousedown = dragMouseDown;
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
     function initTool() {
-        // Avoid duplicate insertion
         if (document.getElementById("ticket-info-menu")) return;
         console.log("Initializing ticket info menu...");
 
-        // Inject CSS for dark mode and our sticky menu styling
+        // Inject CSS for dark mode and sticky menu styling
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
             /* Global Dark Mode Overrides */
@@ -81,17 +136,17 @@
         `;
         document.head.appendChild(styleTag);
 
-        // Create the container for our menu
+        // Create container
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
 
-        // Night mode toggle button (floated to right)
+        // Night mode toggle button
         const nightModeToggle = document.createElement('button');
         nightModeToggle.textContent = "Night Mode";
         nightModeToggle.style.float = 'right';
         container.appendChild(nightModeToggle);
 
-        // Set initial night mode state from localStorage
+        // Set initial night mode state
         const nightModeEnabled = localStorage.getItem('fdNightMode') === 'true';
         if (nightModeEnabled) {
             container.classList.add('night');
@@ -99,7 +154,6 @@
             nightModeToggle.textContent = "Day Mode";
         }
 
-        // Toggle night mode on click
         nightModeToggle.addEventListener('click', function() {
             const current = localStorage.getItem('fdNightMode') === 'true';
             if (current) {
@@ -115,7 +169,7 @@
             }
         });
 
-        // Menu Title (this will also serve as the drag handle)
+        // Menu title and drag handle
         const title = document.createElement('div');
         title.textContent = "Ticket Info";
         title.style.fontWeight = 'bold';
@@ -123,7 +177,7 @@
         title.style.cursor = 'move';
         container.appendChild(title);
 
-        // Make the container draggable using the title as the handle
+        // Make the container draggable
         makeDraggable(container, title);
 
         // Helper: Create a menu item with a copy button
@@ -159,156 +213,106 @@
             return itemDiv;
         }
 
-        // Helper: Get field value with multiple fallbacks
-        function getFieldValue(inputElement) {
-            if (!inputElement) return "";
-            let val = inputElement.value;
-            if (!val || val.trim() === "") {
-                val = inputElement.getAttribute('value');
-            }
-            if (!val || val.trim() === "") {
-                val = inputElement.defaultValue;
-            }
-            if (!val || val.trim() === "") {
-                val = inputElement.getAttribute('placeholder');
-            }
-            return val ? val.trim() : "";
-        }
+        // Delay reading custom fields slightly (1 second) to allow rendering
+        setTimeout(() => {
+            const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
+            const accountVal = getFieldValue(accountInput);
+            const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
+            const profileVal = getFieldValue(profileInput);
+            const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
+            const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
+            const emailInput = document.querySelector('input[name="requester[email]"]') ||
+                               document.querySelector('input[data-test-text-field="requester[email]"]');
+            const emailVal = emailInput ? emailInput.value.trim() : "";
 
-        // For account and profile fields, use getFieldValue
-        const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-        const accountValue = getFieldValue(accountInput);
-        const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-        const profileValue = getFieldValue(profileInput);
+            container.appendChild(createMenuItem("Account", accountVal));
+            container.appendChild(createMenuItem("Account Profile", profileVal));
+            container.appendChild(createMenuItem("Sender Email", emailVal));
+            container.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-        // For URLs and email, use .value
-        const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
-        const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
-        const emailInput = document.querySelector('input[name="requester[email]"]') ||
-                           document.querySelector('input[data-test-text-field="requester[email]"]');
-        const emailValue = emailInput ? emailInput.value.trim() : "";
-
-        container.appendChild(createMenuItem("Account", accountValue));
-        container.appendChild(createMenuItem("Account Profile", profileValue));
-        container.appendChild(createMenuItem("Sender Email", emailValue));
-        container.appendChild(createMenuItem("Relevant URLs", urlsValue));
-
-        // Recent Tickets (last 7 days)
-        function getRecentTickets() {
-            const tickets = [];
-            const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
-            if (!ticketElements.length) return tickets;
-            const now = new Date();
-            const threshold = 7 * 24 * 60 * 60 * 1000;
-            ticketElements.forEach(ticketEl => {
-                const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
-                if (timeEl) {
-                    let dateStr = timeEl.textContent.trim().replace(',', '');
-                    let ticketDate = new Date(dateStr);
-                    if (!isNaN(ticketDate) && (now - ticketDate <= threshold) && (ticketDate <= now)) {
-                        const linkEl = ticketEl.querySelector('a.text__link-heading');
-                        if (linkEl) {
-                            const href = linkEl.href;
-                            const subject = linkEl.textContent.trim();
-                            tickets.push({href, subject, date: ticketDate});
+            // Recent Tickets (last 7 days)
+            function getRecentTickets() {
+                const tickets = [];
+                const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
+                if (!ticketElements.length) return tickets;
+                const now = new Date();
+                const threshold = 7 * 24 * 60 * 60 * 1000;
+                ticketElements.forEach(ticketEl => {
+                    const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
+                    if (timeEl) {
+                        let dateStr = timeEl.textContent.trim().replace(',', '');
+                        let ticketDate = new Date(dateStr);
+                        if (!isNaN(ticketDate) && (now - ticketDate <= threshold) && (ticketDate <= now)) {
+                            const linkEl = ticketEl.querySelector('a.text__link-heading');
+                            if (linkEl) {
+                                const href = linkEl.href;
+                                const subject = linkEl.textContent.trim();
+                                tickets.push({href, subject, date: ticketDate});
+                            }
                         }
                     }
-                }
-            });
-            return tickets;
-        }
-
-        const recentTickets = getRecentTickets();
-        if (recentTickets.length) {
-            const divider = document.createElement('hr');
-            divider.style.margin = '10px 0';
-            container.appendChild(divider);
-
-            const recentHeader = document.createElement('div');
-            recentHeader.textContent = "Recent Tickets (last 7 days)";
-            recentHeader.style.fontWeight = 'bold';
-            recentHeader.style.marginBottom = '6px';
-            container.appendChild(recentHeader);
-
-            recentTickets.forEach(ticket => {
-                const ticketDiv = document.createElement('div');
-                ticketDiv.style.marginBottom = '6px';
-
-                const ticketLink = document.createElement('a');
-                ticketLink.href = ticket.href;
-                ticketLink.textContent = ticket.subject;
-                ticketLink.target = '_blank';
-                ticketLink.style.color = '#007bff';
-                ticketLink.style.textDecoration = 'none';
-                ticketLink.style.marginRight = '5px';
-                ticketLink.addEventListener('mouseover', () => {
-                    ticketLink.style.textDecoration = 'underline';
                 });
-                ticketLink.addEventListener('mouseout', () => {
+                return tickets;
+            }
+
+            const recentTickets = getRecentTickets();
+            if (recentTickets.length) {
+                const divider = document.createElement('hr');
+                divider.style.margin = '10px 0';
+                container.appendChild(divider);
+
+                const recentHeader = document.createElement('div');
+                recentHeader.textContent = "Recent Tickets (last 7 days)";
+                recentHeader.style.fontWeight = 'bold';
+                recentHeader.style.marginBottom = '6px';
+                container.appendChild(recentHeader);
+
+                recentTickets.forEach(ticket => {
+                    const ticketDiv = document.createElement('div');
+                    ticketDiv.style.marginBottom = '6px';
+
+                    const ticketLink = document.createElement('a');
+                    ticketLink.href = ticket.href;
+                    ticketLink.textContent = ticket.subject;
+                    ticketLink.target = '_blank';
+                    ticketLink.style.color = '#007bff';
                     ticketLink.style.textDecoration = 'none';
-                });
-                ticketDiv.appendChild(ticketLink);
-
-                const copyTicketBtn = document.createElement('button');
-                copyTicketBtn.textContent = "Copy Link";
-                copyTicketBtn.addEventListener('click', function() {
-                    navigator.clipboard.writeText(ticket.href).then(() => {
-                        copyTicketBtn.textContent = "Copied!";
-                        setTimeout(() => { copyTicketBtn.textContent = "Copy Link"; }, 2000);
-                    }).catch(err => {
-                        console.error("Copy failed:", err);
+                    ticketLink.style.marginRight = '5px';
+                    ticketLink.addEventListener('mouseover', () => {
+                        ticketLink.style.textDecoration = 'underline';
                     });
+                    ticketLink.addEventListener('mouseout', () => {
+                        ticketLink.style.textDecoration = 'none';
+                    });
+                    ticketDiv.appendChild(ticketLink);
+
+                    const copyTicketBtn = document.createElement('button');
+                    copyTicketBtn.textContent = "Copy Link";
+                    copyTicketBtn.addEventListener('click', function() {
+                        navigator.clipboard.writeText(ticket.href).then(() => {
+                            copyTicketBtn.textContent = "Copied!";
+                            setTimeout(() => { copyTicketBtn.textContent = "Copy Link"; }, 2000);
+                        }).catch(err => {
+                            console.error("Copy failed:", err);
+                        });
+                    });
+                    ticketDiv.appendChild(copyTicketBtn);
+
+                    container.appendChild(ticketDiv);
                 });
-                ticketDiv.appendChild(copyTicketBtn);
+            }
+        }, 1000);
 
-                container.appendChild(ticketDiv);
-            });
-        }
-
-        // Append the menu to document.body
+        // Append the menu to the document body
         document.body.appendChild(container);
         console.log("Ticket info menu appended to document.body");
 
-        // Convert fixed positioning to allow dragging by setting initial left/top
+        // After appending, convert fixed positioning to allow dragging by setting initial left/top
         const rect = container.getBoundingClientRect();
         container.style.left = rect.left + "px";
         container.style.top = rect.top + "px";
         container.style.right = "auto";
         container.style.bottom = "auto";
-    }
-
-    // Draggable functionality using the provided handle
-    function makeDraggable(elmnt, handle) {
-        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-        handle.onmousedown = dragMouseDown;
-
-        function dragMouseDown(e) {
-            e = e || window.event;
-            e.preventDefault();
-            // Get the mouse cursor position at startup:
-            pos3 = e.clientX;
-            pos4 = e.clientY;
-            document.onmouseup = closeDragElement;
-            document.onmousemove = elementDrag;
-        }
-
-        function elementDrag(e) {
-            e = e || window.event;
-            e.preventDefault();
-            // Calculate the new cursor position:
-            pos1 = pos3 - e.clientX;
-            pos2 = pos4 - e.clientY;
-            pos3 = e.clientX;
-            pos4 = e.clientY;
-            // Set the element's new position:
-            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
-            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
-        }
-
-        function closeDragElement() {
-            document.onmouseup = null;
-            document.onmousemove = null;
-        }
     }
 
     if (document.readyState === 'loading') {
