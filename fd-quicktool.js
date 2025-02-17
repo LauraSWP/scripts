@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.26
+// @version      1.27
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,17 +13,29 @@
 (function() {
   'use strict';
 
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
+  // 0) CHECK IF CURRENT PAGE IS A TICKET PAGE
+  //------------------------------------------------------------------
+  // We only show if the path matches /a/tickets/NNNN, ignoring "filters" etc.
+  const path = window.location.pathname;
+  // e.g. /a/tickets/259532
+  if (!/^\/a\/tickets\/\d+$/.test(path)) {
+    // Not a direct ticket page, do nothing
+    console.log("MultiTool Beast: Not a ticket page. Aborting.");
+    return;
+  }
+
+  //------------------------------------------------------------------
   // 1) INJECT BOOTSTRAP
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   const bootstrapLink = document.createElement('link');
   bootstrapLink.rel = 'stylesheet';
   bootstrapLink.href = 'https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css';
   document.head.appendChild(bootstrapLink);
 
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   // 2) MINIMAL DARK MODE CSS OVERRIDES
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   const nightModeCSS = `
 /* Minimal dark overrides */
 body, html, .page, .main-content {
@@ -85,20 +97,18 @@ input, textarea, select, button {
     }
   }
 
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   // 3) THEME TOGGLE (LIGHT VS DARK)
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   function setTheme(themeName) {
     localStorage.setItem('fdTheme', themeName);
   }
   function toggleTheme() {
     const current = localStorage.getItem('fdTheme');
     if (current === 'theme-dark') {
-      // Switch to light
       setTheme('theme-light');
       removeNightModeCSS();
     } else {
-      // Switch to dark
       setTheme('theme-dark');
       applyNightModeCSS();
     }
@@ -112,9 +122,9 @@ input, textarea, select, button {
     }
   }
 
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   // 4) DRAGGABLE FUNCTION
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
     handle.onmousedown = dragMouseDown;
@@ -140,68 +150,9 @@ input, textarea, select, button {
     }
   }
 
-  //--------------------------------------------------------------
-  // 5) GET EMAIL HELPER (MutationObserver + forced hover)
-  //--------------------------------------------------------------
-  async function getEmailValue() {
-    // Check normal input
-    let emailInput = document.querySelector('input[name="requester[email]"]') ||
-                     document.querySelector('input[data-test-text-field="requester[email]"]');
-    let emailVal = emailInput ? emailInput.value.trim() : "";
-
-    // Check visible mailto anchor
-    if (!emailVal) {
-      const mailtoAnchor = document.querySelector('.contacts_cardemail--text a[href^="mailto:"]');
-      if (mailtoAnchor) {
-        emailVal = mailtoAnchor.href.replace(/^mailto:/, '').trim();
-      }
-    }
-    if (emailVal) return emailVal;
-
-    // If still no email, forcibly hover + observe the wormhole
-    const wormhole = document.getElementById('ember-basic-dropdown-wormhole');
-    const emailTrigger = document.querySelector('.contacts_cardemail--text');
-    if (!wormhole || !emailTrigger) return "";
-
-    // We'll dispatch mouseenter on .contacts_cardemail--text
-    emailTrigger.dispatchEvent(new MouseEvent('mouseenter', {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    }));
-
-    // Wait for the mailto link to appear
-    emailVal = await new Promise((resolve) => {
-      let foundEmail = "";
-      let observer = new MutationObserver(() => {
-        const link = wormhole.querySelector('a[href^="mailto:"]');
-        if (link) {
-          foundEmail = link.href.replace(/^mailto:/, '').trim();
-          observer.disconnect();
-          resolve(foundEmail);
-        }
-      });
-      observer.observe(wormhole, { childList: true, subtree: true });
-      // Fallback if no link appears after 2 seconds
-      setTimeout(() => {
-        observer.disconnect();
-        resolve("");
-      }, 2000);
-    });
-
-    // Now dispatch mouseleave to close the dropdown
-    emailTrigger.dispatchEvent(new MouseEvent('mouseleave', {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    }));
-
-    return emailVal;
-  }
-
-  //--------------------------------------------------------------
-  // 6) GET FIELD VALUE HELPER
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
+  // 5) GET FIELD VALUE HELPER
+  //------------------------------------------------------------------
   function getFieldValue(inputElement) {
     if (!inputElement) return "";
     let val = inputElement.value;
@@ -230,30 +181,70 @@ input, textarea, select, button {
     return val ? val.trim() : "";
   }
 
-  //--------------------------------------------------------------
-  // 7) MULTITOOL INIT
-  //--------------------------------------------------------------
+  //------------------------------------------------------------------
+  // 6) SUMMARY HELPER
+  //------------------------------------------------------------------
+  // The summary is inside: <div class="ticket_note" data-note-id="36417254623"> ... </div>
+  // We'll just grab the first one or combine them if multiple?
+  // Let's just grab the first for demonstration.
+  function getSummary() {
+    const noteDiv = document.querySelector('.ticket_note[data-note-id]');
+    if (!noteDiv) return "";
+    // We'll take the textContent, or we can parse out headings. We'll do textContent for simplicity.
+    return noteDiv.textContent.trim();
+  }
+
+  //------------------------------------------------------------------
+  // 7) MAIN MULTITOOL
+  //------------------------------------------------------------------
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("Initializing MultiTool Beast (Bootstrap + inside drag + forced email MutationObserver)...");
+    console.log("Initializing MultiTool Beast (v1.31)...");
 
     initTheme(); // sets or removes the minimal dark CSS
 
-    // Outer wrapper
+    // 7.1) A small tab pinned at bottom to open the tool
+    const openTabBtn = document.createElement('button');
+    openTabBtn.textContent = "MT Beast";
+    openTabBtn.style.position = 'fixed';
+    openTabBtn.style.bottom = '20px';
+    openTabBtn.style.right = '20px';
+    openTabBtn.style.zIndex = '9999';
+    openTabBtn.style.backgroundColor = '#007bff';
+    openTabBtn.style.color = '#fff';
+    openTabBtn.style.border = '1px solid #0056b3';
+    openTabBtn.style.borderRadius = '4px';
+    openTabBtn.style.padding = '6px 10px';
+    openTabBtn.title = 'Open MultiTool Beast';
+    openTabBtn.addEventListener('click', () => {
+      wrapper.style.display = 'block';
+      openTabBtn.style.display = 'none';
+    });
+    document.body.appendChild(openTabBtn);
+
+    // 7.2) Outer wrapper for the box
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     wrapper.style.position = 'fixed';
     wrapper.style.bottom = '80px';
-    wrapper.style.right = '30px';
+    wrapper.style.right = '20px';
     wrapper.style.zIndex = '9999';
-    wrapper.style.width = '340px';
+    wrapper.style.width = '360px';
     wrapper.style.overflow = 'visible';
+    // Start as displayed, or you can start hidden if you want
+    wrapper.style.display = 'block';
+    // Make it resizable
+    wrapper.style.resize = 'both';
+    wrapper.style.overflow = 'auto';
 
     // The main card container
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
-    container.classList.add('card', 'text-dark', 'bg-white'); // card with white bg in light mode
+    container.classList.add('card', 'text-dark', 'bg-white');
     container.style.cursor = 'default';
+    container.style.height = '100%';
+    container.style.minHeight = '200px';
+    container.style.minWidth = '280px';
     wrapper.appendChild(container);
 
     // Card header
@@ -278,13 +269,30 @@ input, textarea, select, button {
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right side: drag handle
+    // Right side: drag handle + close button
+    const rightHeaderDiv = document.createElement('div');
+    rightHeaderDiv.classList.add('d-flex', 'align-items-center');
+
+    // Drag handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = '✋';
-    dragHandleBtn.classList.add('btn', 'btn-light', 'border');
+    dragHandleBtn.classList.add('btn', 'btn-light', 'border', 'mr-2');
     dragHandleBtn.style.cursor = 'move';
     dragHandleBtn.title = 'Drag to move MultiTool Beast';
-    headerArea.appendChild(dragHandleBtn);
+    rightHeaderDiv.appendChild(dragHandleBtn);
+
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
+    closeBtn.title = 'Close MultiTool Beast';
+    closeBtn.addEventListener('click', () => {
+      wrapper.style.display = 'none';
+      openTabBtn.style.display = 'block';
+    });
+    rightHeaderDiv.appendChild(closeBtn);
+
+    headerArea.appendChild(rightHeaderDiv);
 
     // Card body
     const cardBody = document.createElement('div');
@@ -379,6 +387,20 @@ input:checked + .slider:before {
       refreshCheckbox();
     });
 
+    // "Include Summary" checkbox
+    const summaryRowDiv = document.createElement('div');
+    summaryRowDiv.classList.add('mb-2');
+    const summaryCheckbox = document.createElement('input');
+    summaryCheckbox.type = 'checkbox';
+    summaryCheckbox.id = 'include-summary';
+    summaryCheckbox.classList.add('mr-1');
+    const summaryLabel = document.createElement('label');
+    summaryLabel.textContent = "Include Summary";
+    summaryLabel.htmlFor = 'include-summary';
+    summaryRowDiv.appendChild(summaryCheckbox);
+    summaryRowDiv.appendChild(summaryLabel);
+    cardBody.appendChild(summaryRowDiv);
+
     // Parse ticket ID
     let currentTicketId = "";
     let currentTicketLink = "";
@@ -387,11 +409,11 @@ input:checked + .slider:before {
     if (matchUrl) {
       currentTicketId = matchUrl[1];
       currentTicketLink = window.location.origin + "/a/tickets/" + currentTicketId;
-      ticketIdVal = currentTicketId;
+      ticketIdVal = "#" + currentTicketId; // #ID format
     }
 
     // We'll fill the data after a short delay
-    setTimeout(async () => {
+    setTimeout(() => {
       // Fields
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
@@ -402,19 +424,16 @@ input:checked + .slider:before {
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
 
-      // Force-observe the wormhole for email
-      const emailVal = await getEmailValue();
-
+      // We'll create a function for each field row
       function createMenuItem(labelText, valueText) {
         const itemDiv = document.createElement('div');
-        itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom'); // each data row separated
+        itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom');
 
         const label = document.createElement('span');
         label.textContent = labelText + ": ";
         label.style.fontWeight = 'bold';
         itemDiv.appendChild(label);
 
-        // If "account"/"profile" literal => empty
         if (valueText) {
           const lowerVal = valueText.trim().toLowerCase();
           if (lowerVal === 'account' || lowerVal === 'profile') {
@@ -423,7 +442,7 @@ input:checked + .slider:before {
         }
 
         let valueEl;
-        // If relevant URLs => link if "http"/"www"
+        // If relevant URLs => link
         if (labelText.toLowerCase() === "relevant urls" && valueText && (valueText.startsWith("http") || valueText.startsWith("www"))) {
           valueEl = document.createElement('a');
           valueEl.href = valueText;
@@ -433,9 +452,10 @@ input:checked + .slider:before {
           valueEl = document.createElement('span');
           valueEl.textContent = valueText || "N/A";
         }
-        valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded'); // differentiate from label
+        valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
         itemDiv.appendChild(valueEl);
 
+        // Copy button
         const copyBtn = document.createElement('button');
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'ml-2');
@@ -454,13 +474,13 @@ input:checked + .slider:before {
         return itemDiv;
       }
 
+      // Add the fields
       cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
       cardBody.appendChild(createMenuItem("Account", accountVal));
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
-      cardBody.appendChild(createMenuItem("Sender Email", emailVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // Recent Tickets
+      // Now recent tickets
       function getRecentTickets() {
         const tickets = [];
         const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -543,26 +563,48 @@ input:checked + .slider:before {
       }
     }, 1500);
 
+    // Summary (from div.ticket_note[data-note-id])
+    function getSummary() {
+      const noteDiv = document.querySelector('.ticket_note[data-note-id]');
+      if (!noteDiv) return "";
+      return noteDiv.textContent.trim();
+    }
+
     // "Copy All" logic
     copyAllBtn.addEventListener('click', function() {
-      const storedTheme = localStorage.getItem('fdTheme');
-      let acc, prof, urlsVal, currentTicketId, currentTicketLink;
-      // We'll rely on the variables from above if needed, or you can store them in a higher scope.
-      // For simplicity, let's store them in the DOM or skip re-checking. 
-      // But let's do a minimal approach for now.
+      // We'll parse the fields from the DOM or store them in variables
+      // We'll do a quick approach: re-check them from the DOM if needed
+      // For clarity, let's store them in closures if you prefer
+      const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
+      const currentID = matchUrl ? matchUrl[1] : "";
+      const link = window.location.origin + "/a/tickets/" + currentID;
 
-      // We can store them in the DOM data attributes or keep them in a closure.
-      // We'll do a minimal approach by re-checking the fields from the DOM if needed or do nothing for brevity.
+      const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
+      let acc = getFieldValue(accountInput);
+      if (acc && acc.trim().toLowerCase() === "account") acc = "";
+      const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
+      let prof = getFieldValue(profileInput);
+      if (prof && prof.trim().toLowerCase() === "profile") prof = "";
 
-      // For demonstration, let's re-check the existing references from the closure:
-      // Actually let's do a quick approach:
-      let textToCopy = "**Ticket ID**: ???\n**Account**: ???\n**Profile**: ???\n**Relevant URLs**: ???\n";
-      // We'll do a minimal approach to show how you'd store them in a closure variable
-      // Then you can fill them in with your actual variables if you like.
-      // For the sake of the demonstration, let's do:
-      textToCopy = document.querySelector("#ticket-info-menu").innerText; // naive approach
-      // Or do the actual approach from earlier code storing them in variables.
-      // We'll do the naive approach for now:
+      const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
+      let relUrls = urlsTextarea ? urlsTextarea.value.trim() : "";
+      if (!relUrls) relUrls = "N/A";
+
+      // If user checked "Include Summary"
+      let summaryText = "";
+      const summaryChecked = document.getElementById('include-summary');
+      if (summaryChecked && summaryChecked.checked) {
+        summaryText = getSummary();
+      }
+
+      // Build Slack/Jira snippet
+      let textToCopy = `**Ticket ID**: <${link}|#${currentID}>\n` +
+                       `**Account**: ${acc || "N/A"}\n` +
+                       `**Profile**: ${prof || "N/A"}\n` +
+                       `**Relevant URLs**: ${relUrls || "N/A"}\n`;
+      if (summaryText) {
+        textToCopy += `\n**Summary**:\n${summaryText}\n`;
+      }
 
       navigator.clipboard.writeText(textToCopy).then(() => {
         copyAllBtn.textContent = "Copied All!";
@@ -576,7 +618,7 @@ input:checked + .slider:before {
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("MultiTool Beast (v1.30) loaded with inside drag, forced wormhole observer, and Bootstrap card!");
+    console.log("MultiTool Beast v1.31 loaded: box only on ticket pages, no email, summary optional, toggles closed with a tab!");
   }
 
   if (document.readyState === 'loading') {
