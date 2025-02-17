@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.9
-// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode. Uses a MutationObserver to wait for the sidebar in SPA.
+// @version      1.10
+// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle (dark mode CSS injected). Uses setInterval to wait for the sidebar in SPA.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,10 +13,13 @@
 (function() {
     'use strict';
 
-    // Main function to insert the menu into the sidebar
     function initTool() {
         // Avoid duplicate insertion
-        if (document.getElementById("ticket-info-menu")) return;
+        if (document.getElementById("ticket-info-menu")) {
+            console.log("Ticket info menu already exists.");
+            return;
+        }
+        console.log("Initializing ticket info menu...");
 
         // Inject CSS for global dark mode on Freshdesk and for our menu
         const styleTag = document.createElement('style');
@@ -57,7 +60,7 @@
         // Create the container for our menu
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
-        // Use static positioning so it flows within the sidebar
+        // For sidebar insertion, use static positioning
         container.style.position = 'static';
         container.style.margin = '10px 0';
         container.style.backgroundColor = '#fff';
@@ -91,7 +94,6 @@
             nightModeToggle.textContent = "Day Mode";
         }
 
-        // Toggle night mode function
         function toggleNightMode(enable) {
             if (enable) {
                 document.body.classList.add('fd-night-mode');
@@ -116,7 +118,7 @@
         title.style.marginBottom = '8px';
         container.appendChild(title);
 
-        // Helper function to create a menu item with a copy button
+        // Helper: create a menu item with a copy button
         function createMenuItem(labelText, valueText) {
             const itemDiv = document.createElement('div');
             itemDiv.style.marginBottom = '6px';
@@ -245,27 +247,32 @@
             });
         }
 
-        // Insert the menu into the sidebar if it exists; else fallback to body
+        // Determine insertion point: sidebar or fallback
         const sidebarTarget = document.getElementById('widget-sidebar-content');
         if (sidebarTarget) {
+            console.log("Sidebar found. Inserting ticket info menu.");
             sidebarTarget.appendChild(container);
         } else {
+            console.log("Sidebar not found. Inserting ticket info menu into document body.");
             document.body.appendChild(container);
         }
     }
 
-    // MutationObserver to wait for the sidebar in case Freshdesk is an SPA
+    // Use setInterval to wait for the sidebar element (in case Freshdesk is an SPA)
     function waitForSidebar() {
-        const observer = new MutationObserver((mutations, obs) => {
-            if (document.getElementById('widget-sidebar-content')) {
+        let attempts = 0;
+        const maxAttempts = 30; // Try for 30 seconds max
+        const intervalId = setInterval(() => {
+            attempts++;
+            const sidebar = document.getElementById('widget-sidebar-content');
+            console.log("Attempt", attempts, "sidebar found:", sidebar);
+            if (sidebar || attempts >= maxAttempts) {
+                clearInterval(intervalId);
                 initTool();
-                obs.disconnect();
             }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
+        }, 1000);
     }
 
-    // Initialize when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', waitForSidebar);
     } else {
