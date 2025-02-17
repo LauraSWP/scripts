@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.13
-// @description  Inserts a sticky menu (with ticket info, copy buttons, recent tickets, and a night mode toggle) into Freshdesk. Target: element with id "ember409" if present, else document.body.
+// @version      1.14
+// @description  Appends a sticky menu to Freshdesk pages (bottom‑right) with ticket info, copy buttons, recent tickets (last 7 days), and a night mode toggle. Uses getAttribute for account and profile fields.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -18,7 +18,7 @@
         if (document.getElementById("ticket-info-menu")) return;
         console.log("Initializing ticket info menu...");
 
-        // Inject CSS for dark mode and our menu styling
+        // Inject CSS for dark mode and our sticky menu styling
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
             /* Global Dark Mode Overrides */
@@ -37,7 +37,7 @@
                 color: #e0e0e0 !important;
                 border-color: #333 !important;
             }
-            /* Menu Styling */
+            /* Sticky Menu Styling */
             #ticket-info-menu {
                 position: fixed;
                 bottom: 20px;
@@ -154,11 +154,13 @@
             return itemDiv;
         }
 
-        // Grab ticket fields (if available)
+        // For account and profile fields, use getAttribute('value')
         const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-        const accountValue = accountInput ? accountInput.value.trim() : "";
+        const accountValue = accountInput ? (accountInput.getAttribute('value') || "").trim() : "";
         const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-        const profileValue = profileInput ? profileInput.value.trim() : "";
+        const profileValue = profileInput ? (profileInput.getAttribute('value') || "").trim() : "";
+
+        // For URLs and email, we can continue to use .value (or getAttribute if needed)
         const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
         const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
         const emailInput = document.querySelector('input[name="requester[email]"]') ||
@@ -242,16 +244,9 @@
             });
         }
 
-        // Insert the container into the element with id "ember409" if it exists,
-        // otherwise append to document.body.
-        const target = document.getElementById("ember409");
-        if (target) {
-            target.appendChild(container);
-            console.log("Ticket info menu inserted into #ember409");
-        } else {
-            document.body.appendChild(container);
-            console.log("Ticket info menu appended to document.body");
-        }
+        // Append the menu to the document body
+        document.body.appendChild(container);
+        console.log("Ticket info menu appended to document.body");
     }
 
     if (document.readyState === 'loading') {
