@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Freshdesk Ticket Info Menu with Injected Night Mode & Recent Tickets (7-day threshold)
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.8
-// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode. Now inserted into the sidebar.
+// @version      1.9
+// @description  Adds a menu to Freshdesk ticket pages with ticket info, copy-to-clipboard buttons, recent tickets (last 7 days), and a night mode toggle that injects CSS to change Freshdesk to dark mode. Uses a MutationObserver to wait for the sidebar in SPA.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,7 +13,11 @@
 (function() {
     'use strict';
 
+    // Main function to insert the menu into the sidebar
     function initTool() {
+        // Avoid duplicate insertion
+        if (document.getElementById("ticket-info-menu")) return;
+
         // Inject CSS for global dark mode on Freshdesk and for our menu
         const styleTag = document.createElement('style');
         styleTag.innerHTML = `
@@ -53,7 +57,7 @@
         // Create the container for our menu
         const container = document.createElement('div');
         container.id = "ticket-info-menu";
-        // We'll set the default styles assuming sidebar insertion (static position)
+        // Use static positioning so it flows within the sidebar
         container.style.position = 'static';
         container.style.margin = '10px 0';
         container.style.backgroundColor = '#fff';
@@ -66,10 +70,9 @@
         container.style.fontFamily = 'sans-serif';
         container.style.lineHeight = '1.4';
 
-        // Night mode toggle button (positioned in the top-right corner of the menu)
+        // Night mode toggle button (floated to the right)
         const nightModeToggle = document.createElement('button');
         nightModeToggle.textContent = "Night Mode";
-        // For sidebar, we'll use relative positioning inside the container
         nightModeToggle.style.float = 'right';
         nightModeToggle.style.fontSize = '12px';
         nightModeToggle.style.cursor = 'pointer';
@@ -101,7 +104,6 @@
             nightModeToggle.textContent = enable ? "Day Mode" : "Night Mode";
         }
 
-        // Set up the toggle event
         nightModeToggle.addEventListener('click', function() {
             const current = localStorage.getItem('fdNightMode') === 'true';
             toggleNightMode(!current);
@@ -152,13 +154,10 @@
         // Grab ticket fields (if available)
         const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
         const accountValue = accountInput ? accountInput.value.trim() : "";
-
         const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
         const profileValue = profileInput ? profileInput.value.trim() : "";
-
         const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
         const urlsValue = urlsTextarea ? urlsTextarea.value.trim() : "";
-
         const emailInput = document.querySelector('input[name="requester[email]"]') || document.querySelector('input[data-test-text-field="requester[email]"]');
         const emailValue = emailInput ? emailInput.value.trim() : "";
 
@@ -180,8 +179,7 @@
             ticketElements.forEach(ticketEl => {
                 const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
                 if (timeEl) {
-                    let dateStr = timeEl.textContent.trim();
-                    dateStr = dateStr.replace(',', '');
+                    let dateStr = timeEl.textContent.trim().replace(',', '');
                     let ticketDate = new Date(dateStr);
                     if (!isNaN(ticketDate)) {
                         if ((now - ticketDate <= threshold) && (ticketDate <= now)) {
@@ -247,19 +245,30 @@
             });
         }
 
-        // Insert the menu into the sidebar if possible
+        // Insert the menu into the sidebar if it exists; else fallback to body
         const sidebarTarget = document.getElementById('widget-sidebar-content');
         if (sidebarTarget) {
             sidebarTarget.appendChild(container);
         } else {
-            // Fallback: append to document.body if sidebar not found
             document.body.appendChild(container);
         }
     }
 
+    // MutationObserver to wait for the sidebar in case Freshdesk is an SPA
+    function waitForSidebar() {
+        const observer = new MutationObserver((mutations, obs) => {
+            if (document.getElementById('widget-sidebar-content')) {
+                initTool();
+                obs.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // Initialize when DOM is ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initTool);
+        document.addEventListener('DOMContentLoaded', waitForSidebar);
     } else {
-        initTool();
+        waitForSidebar();
     }
 })();
