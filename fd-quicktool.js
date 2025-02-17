@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.30
+// @version      1.31
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,6 +9,7 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
+
 
 (function() {
   'use strict';
@@ -113,19 +114,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   function getFieldValue(inputElement) {
     if (!inputElement) return "";
     let val = inputElement.value;
-    if (!val || val.trim() === "") {
-      val = inputElement.getAttribute('value');
-    }
-    if (!val || val.trim() === "") {
-      val = inputElement.getAttribute('placeholder');
-    }
+    if (!val || val.trim() === "") { val = inputElement.getAttribute('value'); }
+    if (!val || val.trim() === "") { val = inputElement.getAttribute('placeholder'); }
     if ((!val || val.trim() === "") && window.Ember && inputElement.id) {
-      try {
-        let view = Ember.View.views && Ember.View.views[inputElement.id];
-        if (view) { val = view.get('value'); }
-      } catch (e) {
-        console.error("Ember view lookup failed:", e);
-      }
+      try { let view = Ember.View.views && Ember.View.views[inputElement.id]; if (view) { val = view.get('value'); } }
+      catch (e) { console.error("Ember view lookup failed:", e); }
     }
     if (!val || val.trim() === "") {
       let parent = inputElement.parentElement;
@@ -140,28 +133,54 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     return noteDiv ? noteDiv.textContent.trim() : "";
   }
 
-  // ---- 7) Main MultiTool Beast Initialization ----
+  // ---- 7) Format CARR as Currency ----
+  function formatCurrency(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
+  }
+
+  // ---- 8) Fetch and Display CARR from Company Profile ----
+  function fetchCARR(cardBody) {
+    const companyElem = document.querySelector('a[href*="/a/companies/"]');
+    if (companyElem) {
+      const companyURL = companyElem.href;
+      fetch(companyURL, { credentials: 'include' })
+        .then(response => response.text())
+        .then(htmlText => {
+          // Look for element with data-test-field-content="CARR (converted)" and capture its inner number.
+          const carrMatch = htmlText.match(/data-test-field-content="CARR \(converted\)"[^>]*>\s*<div[^>]*>\s*([\d,\.]+)\s*<\/div>/i);
+          let carrValue = carrMatch ? carrMatch[1].replace(/,/g, "") : "N/A";
+          if (carrValue !== "N/A") {
+            carrValue = formatCurrency(carrValue);
+          }
+          cardBody.appendChild(createMenuItem("CARR", carrValue));
+        })
+        .catch(err => {
+          console.error("Fetching company data failed:", err);
+          cardBody.appendChild(createMenuItem("CARR", "N/A"));
+        });
+    } else {
+      cardBody.appendChild(createMenuItem("CARR", "N/A"));
+    }
+  }
+
+  // ---- 9) Main MultiTool Beast Initialization ----
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("Initializing MultiTool Beast v1.34...");
+    console.log("Initializing MultiTool Beast v1.34.3...");
 
     initTheme();
 
-    // Retrieve open/close state from localStorage; default is open.
+    // Retrieve open/close state; default open.
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
     // Retrieve stored position if available.
     const storedPos = localStorage.getItem("multitool_position");
-    let defaultTop = '80px', defaultRight = '20px';
     let posStyles = {};
-    if (storedPos) {
-      posStyles = JSON.parse(storedPos);
-    }
+    if (storedPos) { posStyles = JSON.parse(storedPos); }
 
-    // ---- Open Tab Button (to reopen if closed) ----
+    // ---- Open Tab Button ----
     const openTabBtn = document.createElement('button');
-    // Use the same icon as in the header.
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
     openTabBtn.style.bottom = '0px';
@@ -190,8 +209,8 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       wrapper.style.bottom = "";
       wrapper.style.right = "";
     } else {
-      wrapper.style.bottom = defaultTop;
-      wrapper.style.right = defaultRight;
+      wrapper.style.bottom = '80px';
+      wrapper.style.right = '20px';
     }
     wrapper.style.position = 'fixed';
     wrapper.style.zIndex = '9999';
@@ -215,7 +234,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left header: Tealium icon + title.
+    // Left header: Tealium icon + Title.
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -284,7 +303,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // Sun/Moon Toggle Switch
+    // Sun/Moon Toggle
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -349,7 +368,7 @@ input:checked + .slider:before {
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // ---- Parse Ticket ID from URL (format as #ID) ----
+    // ---- Parse Ticket ID (format as #ID) ----
     let currentTicketId = "";
     let currentTicketLink = "";
     let ticketIdVal = "";
@@ -360,7 +379,7 @@ input:checked + .slider:before {
       ticketIdVal = "#" + currentTicketId;
     }
 
-    // ---- After delay, populate custom fields ----
+    // ---- After delay, populate custom field data ----
     setTimeout(() => {
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
@@ -411,8 +430,47 @@ input:checked + .slider:before {
 
       cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
       cardBody.appendChild(createMenuItem("Account", accountVal));
+
+      // ---- New Button: Copy Account/Profile (format "accountname/profilename") ----
+      const copyAccProfBtn = document.createElement('button');
+      copyAccProfBtn.textContent = "Copy Account/Profile";
+      copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2');
+      copyAccProfBtn.addEventListener('click', function() {
+        const text = accountVal + "/" + profileVal;
+        navigator.clipboard.writeText(text).then(() => {
+          copyAccProfBtn.textContent = "Copied!";
+          setTimeout(() => { copyAccProfBtn.textContent = "Copy Account/Profile"; }, 2000);
+        }).catch(err => {
+          console.error("Copy Account/Profile failed:", err);
+        });
+      });
+      cardBody.appendChild(copyAccProfBtn);
+
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
+
+      // ---- Fetch and display CARR from Company Profile ----
+      const companyElem = document.querySelector('a[href*="/a/companies/"]');
+      if (companyElem) {
+        const companyURL = companyElem.href;
+        fetch(companyURL, { credentials: 'include' })
+          .then(response => response.text())
+          .then(htmlText => {
+            // Regex to capture the CARR value from the company page.
+            const carrMatch = htmlText.match(/data-test-field-content="CARR \(converted\)"[^>]*>\s*<div[^>]*>\s*([\d,\.]+)\s*<\/div>/i);
+            let carrValue = carrMatch ? carrMatch[1].replace(/,/g, "") : "N/A";
+            if (carrValue !== "N/A") {
+              carrValue = formatCurrency(carrValue);
+            }
+            cardBody.appendChild(createMenuItem("CARR", carrValue));
+          })
+          .catch(err => {
+            console.error("Fetching company data failed:", err);
+            cardBody.appendChild(createMenuItem("CARR", "N/A"));
+          });
+      } else {
+        cardBody.appendChild(createMenuItem("CARR", "N/A"));
+      }
 
       // ---- Recent Tickets (last 7 days) ----
       function getRecentTickets() {
@@ -445,11 +503,13 @@ input:checked + .slider:before {
       const divider = document.createElement('hr');
       divider.classList.add('my-2');
       cardBody.appendChild(divider);
+
       const recentHeader = document.createElement('div');
       recentHeader.textContent = "Recent Tickets (last 7 days)";
       recentHeader.style.fontWeight = 'bold';
       recentHeader.classList.add('mb-2');
       cardBody.appendChild(recentHeader);
+
       const recentTickets = getRecentTickets();
       if (recentTickets.length) {
         recentTickets.forEach(ticket => {
@@ -491,7 +551,6 @@ input:checked + .slider:before {
       const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
       const currentID = matchUrl ? matchUrl[1] : "";
       const link = window.location.origin + "/a/tickets/" + currentID;
-      // Use Slack/Markdown format: [#ID](URL)
       const ticketPart = `**Ticket ID**: [#${currentID}](${link})\n`;
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       let acc = getFieldValue(accountInput);
@@ -524,7 +583,7 @@ input:checked + .slider:before {
     // ---- Append Wrapper & Enable Dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-    console.log("MultiTool Beast v1.34 loaded!");
+    console.log("MultiTool Beast v1.34.3 loaded!");
   }
 
   if (document.readyState === 'loading') {
