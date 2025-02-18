@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.39
+// @version      1.40
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -158,54 +158,25 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   //-----------------------------------------------------------
-  // 8) Fetch CARR from Company Page via hidden iframe (waiting for full render)
+  // 8) Get CARR Value Directly from Ticket Page Sidebar
   //-----------------------------------------------------------
-  function fetchCARR(callback) {
-    const companyElem = document.querySelector('a[href*="/a/companies/"]');
-    if (companyElem) {
-      const relURL = companyElem.getAttribute('href');
-      const companyURL = window.location.origin + relURL;
-      console.log("[CARR] Found company link on ticket page. Company URL:", companyURL);
-      
-      // Create a hidden iframe to load the company page
-      const iframe = document.createElement('iframe');
-      iframe.style.display = "none";
-      iframe.src = companyURL;
-      
-      iframe.onload = function() {
-        console.log("[CARR] Company iframe loaded. Waiting for full render...");
-        // Wait an extra 5 seconds to allow Ember to render the page fully
-        setTimeout(() => {
-          try {
-            const doc = iframe.contentDocument || iframe.contentWindow.document;
-            // Use a specific selector that targets the CARR value element
-            const carrDiv = doc.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
-            if (carrDiv) {
-              console.log("[CARR] Found CARR element:", carrDiv.outerHTML);
-            } else {
-              console.log("[CARR] CARR element not found.");
-            }
-            let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
-            console.log("[CARR] Extracted text content:", carrValue);
-            if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
-              carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
-              console.log("[CARR] Formatted value =>", carrValue);
-            } else {
-              console.log("[CARR] Not numeric or missing => 'N/A'.");
-            }
-            document.body.removeChild(iframe);
-            callback(carrValue);
-          } catch (e) {
-            console.error("[CARR] Error accessing iframe content:", e);
-            document.body.removeChild(iframe);
-            callback("N/A");
-          }
-        }, 5000);
-      };
-
-      document.body.appendChild(iframe);
+  function getCARRValue(callback) {
+    // Try to locate the CARR value directly in the current DOM.
+    // Based on the provided sidebar HTML, it should be inside:
+    // <div data-test-id="fields-info-carr_usd"> ... <div data-test-field-content="CARR (converted)"> 
+    // and then the child element with class "text__content".
+    const carrElem = document.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
+    if (carrElem) {
+      let carrValue = carrElem.textContent.trim();
+      console.log("[CARR] Found CARR element on ticket page:", carrElem.outerHTML);
+      console.log("[CARR] Extracted value:", carrValue);
+      if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
+        carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
+        console.log("[CARR] Formatted value:", carrValue);
+      }
+      callback(carrValue);
     } else {
-      console.log("[CARR] No company link found on the ticket page => 'N/A'.");
+      console.log("[CARR] CARR element not found on ticket page. Returning 'N/A'.");
       callback("N/A");
     }
   }
@@ -215,7 +186,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.10)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.11)...");
 
     initTheme();
 
@@ -352,7 +323,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // ---- Theme Toggle Switch (Sun/Moon) ----
+    // ---- Theme Toggle Switch ----
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -427,12 +398,16 @@ input:checked + .slider:before {
       ticketIdVal = "#" + currentTicketId;
     }
 
-    // ---- After delay, populate custom field data ----
+    //-----------------------------------------------------------
+    // 10) Populate Custom Field Data (after delay)
+    //-----------------------------------------------------------
     setTimeout(() => {
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
+
       const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
       const profileVal = getFieldValue(profileInput);
+
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
 
@@ -497,8 +472,26 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // ---- Fetch & display CARR from Company Profile ----
-      fetchCARR(function(carrValue) {
+      // ---- Get CARR Value from the current DOM (sidebar) ----
+      function getCARRValue(callback) {
+        const carrElem = document.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
+        if (carrElem) {
+          let carrValue = carrElem.textContent.trim();
+          console.log("[CARR] Found CARR element on ticket page:", carrElem.outerHTML);
+          console.log("[CARR] Extracted value:", carrValue);
+          if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
+            carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
+            console.log("[CARR] Formatted value:", carrValue);
+          }
+          callback(carrValue);
+        } else {
+          console.log("[CARR] CARR element not found on ticket page. Returning 'N/A'.");
+          callback("N/A");
+        }
+      }
+
+      // Fetch & display CARR
+      getCARRValue(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue));
       });
 
@@ -577,7 +570,7 @@ input:checked + .slider:before {
         noTicketsDiv.textContent = "No tickets in the last 7 days";
         cardBody.appendChild(noTicketsDiv);
       }
-    }, 5000); // wait 5 seconds for company page to render
+    }, 5000);
 
     // ---- "Copy All" Button Logic (Markdown formatted) ----
     copyAllBtn.addEventListener('click', function() {
@@ -616,7 +609,7 @@ input:checked + .slider:before {
     // ---- Append Wrapper & Enable Dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-    console.log("[MultiTool Beast] Loaded (v1.34.10) - waiting 5s before fetching company data...");
+    console.log("[MultiTool Beast] Loaded (v1.34.11).");
   }
 
   if (document.readyState === 'loading') {
