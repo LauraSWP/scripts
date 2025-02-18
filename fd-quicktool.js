@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.49
+// @version      1.50
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -184,7 +184,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         setTimeout(() => {
           try {
             const doc = iframe.contentDocument || iframe.contentWindow.document;
-            // Click the "show more" element to reveal extra details
+            // Click "show more" to reveal extra details
             const showMoreBtn = doc.querySelector('div.contacts__sidepanel--state[data-test-toggle]');
             if (showMoreBtn) {
               console.log("[CARR] Found 'show more' element. Clicking it...");
@@ -241,7 +241,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     cardBody.innerHTML = ""; // clear previous content
 
     // Helper to create a field row with a checkbox.
-    // The "withCopy" parameter indicates if a copy button should be added.
     function createMenuItem(labelText, valueText, withCopy = true, rowId = null) {
       const itemDiv = document.createElement('div');
       itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom', 'fieldRow');
@@ -249,7 +248,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         itemDiv.id = rowId;
       }
       
-      // Add checkbox for selection.
+      // Checkbox for selection
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = true;
@@ -279,12 +278,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
       itemDiv.appendChild(valueEl);
       
-      // Add copy button if required.
       if (withCopy) {
         const copyBtn = document.createElement('button');
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'ml-2');
-        // Style copy buttons similar to close button but lighter grey.
+        // Style copy buttons like the close button but lighter
         copyBtn.style.background = "#b0b0b0";
         copyBtn.style.minWidth = "10px";
         copyBtn.style.padding = "4px 15px 5px";
@@ -303,26 +301,24 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       return itemDiv;
     }
 
-    // Retrieve values from the ticket page.
+    // Retrieve ticket field values
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
     const ticketIdVal = "#" + currentTicketIdGlobal;
     
-    // Append rows in order.
+    // Append rows in order: Ticket ID, Account, Account Profile, then CARR, then Relevant URLs.
     cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
     cardBody.appendChild(createMenuItem("Account", accountVal));
     cardBody.appendChild(createMenuItem("Account Profile", profileVal));
-    // Insert placeholder for CARR row (will update in place).
     const carrRow = createMenuItem("CARR", "Fetching...", false, "carrRow");
     cardBody.appendChild(carrRow);
     cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
     
-    // Button for copying Account/Profile separately.
+    // Separate button for copying Account/Profile
     const copyAccProfBtn = document.createElement('button');
     copyAccProfBtn.textContent = "Copy Account/Profile";
     copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2');
-    // Style similar to copy buttons.
     copyAccProfBtn.style.background = "#b0b0b0";
     copyAccProfBtn.style.minWidth = "10px";
     copyAccProfBtn.style.padding = "4px 15px 5px";
@@ -337,7 +333,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     cardBody.appendChild(copyAccProfBtn);
     
-    // Recent Tickets Section.
+    // Recent Tickets Section
     function getRecentTickets() {
       const tickets = [];
       const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -416,7 +412,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       cardBody.appendChild(noTicketsDiv);
     }
     
-    // Fetch CARR and update the CARR row.
+    // Fetch CARR and update the CARR row in place.
     fetchCARR(function(carrValue) {
       const carrRowEl = document.getElementById("carrRow");
       if (carrRowEl) {
@@ -433,7 +429,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.19)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.20-final)...");
     initTheme();
     
     // Retrieve open/close state and position.
@@ -465,7 +461,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     document.body.appendChild(openTabBtn);
     
-    // Outer Wrapper (Resizable) with custom CSS.
+    // Outer Wrapper with custom styling.
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     if (storedPos && storedPos !== "{}") {
@@ -493,16 +489,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
     
-    // Main Card Container (Bootstrap Card)
+    // Main Card Container (no extra border since wrapper provides it)
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
-    container.classList.add('card', 'text-dark', 'bg-white');
+    container.classList.add('card', 'text-dark');
     container.style.cursor = 'default';
-    // Remove container's own padding so our wrapper padding shows.
     container.style.border = "none";
     wrapper.appendChild(container);
     
-    // Card Header (only close button now; drag handle will be separate)
+    // Card Header with custom close button inside.
     const headerArea = document.createElement('div');
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
@@ -526,7 +521,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
     closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
-    // Apply the provided close button CSS.
+    // Custom close button styling.
     closeBtn.style.background = "#8fa0ae";
     closeBtn.style.float = "right";
     closeBtn.style.minWidth = "10px";
@@ -552,12 +547,19 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     const copyAllBtn = document.createElement('button');
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1');
+    // Style like close button but lighter grey.
+    copyAllBtn.style.background = "#b0b0b0";
+    copyAllBtn.style.minWidth = "10px";
+    copyAllBtn.style.padding = "4px 15px 5px";
     topRowDiv.appendChild(copyAllBtn);
     
     const arrowUpBtn = document.createElement('button');
     arrowUpBtn.textContent = "↑";
     arrowUpBtn.title = "Scroll to top";
     arrowUpBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1');
+    arrowUpBtn.style.background = "#b0b0b0";
+    arrowUpBtn.style.minWidth = "10px";
+    arrowUpBtn.style.padding = "4px 15px 5px";
     topRowDiv.appendChild(arrowUpBtn);
     arrowUpBtn.addEventListener('click', () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -567,12 +569,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     arrowDownBtn.textContent = "↓";
     arrowDownBtn.title = "Scroll to bottom";
     arrowDownBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1');
+    arrowDownBtn.style.background = "#b0b0b0";
+    arrowDownBtn.style.minWidth = "10px";
+    arrowDownBtn.style.padding = "4px 15px 5px";
     topRowDiv.appendChild(arrowDownBtn);
     arrowDownBtn.addEventListener('click', () => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
     
-    // Theme Toggle Switch (using our sun/moon slider)
+    // Theme Toggle Switch
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -686,14 +691,13 @@ input:checked + .slider:before {
       });
     });
     
-    // Append wrapper to body.
+    // Append wrapper and add dedicated drag handle
     document.body.appendChild(wrapper);
     
-    // Create a separate drag handle button positioned outside the card (at top center of the wrapper).
+    // Create a separate drag handle button positioned at the top center of the wrapper.
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.classList.add('btn', 'btn-light');
-    // Style the drag handle similar to copy buttons (lighter grey)
     dragHandleBtn.style.background = "#b0b0b0";
     dragHandleBtn.style.minWidth = "10px";
     dragHandleBtn.style.padding = "4px 15px 5px";
@@ -702,13 +706,12 @@ input:checked + .slider:before {
     dragHandleBtn.style.left = "50%";
     dragHandleBtn.style.transform = "translateX(-50%)";
     dragHandleBtn.style.cursor = "move";
-    // Append drag handle to wrapper so it stays with the tool.
     wrapper.appendChild(dragHandleBtn);
     makeDraggable(wrapper, dragHandleBtn);
     
-    console.log("[MultiTool Beast] Loaded (v1.34.19).");
+    console.log("[MultiTool Beast] Loaded (v1.34.20-final).");
   }
-  
+
   //-----------------------------------------------------------
   // Auto-update tool when URL changes (without reloading the page)
   //-----------------------------------------------------------
