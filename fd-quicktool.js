@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.46
+// @version      1.47
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -16,8 +16,12 @@
   //-----------------------------------------------------------
   // 0) Only run on direct ticket pages (/a/tickets/NNNN)
   //-----------------------------------------------------------
-  const path = window.location.pathname;
-  if (!/^\/a\/tickets\/\d+$/.test(path)) {
+  function extractTicketId() {
+    const match = window.location.pathname.match(/tickets\/(\d+)/);
+    return match ? match[1] : null;
+  }
+  const currentTicketIdGlobal = extractTicketId();
+  if (!currentTicketIdGlobal) {
     console.log("[MultiTool Beast] Not a ticket page. Aborting.");
     return;
   }
@@ -183,7 +187,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         setTimeout(() => {
           try {
             const doc = iframe.contentDocument || iframe.contentWindow.document;
-            // Find and click the "show more" element so additional details appear
+            // Click the "show more" element
             const showMoreBtn = doc.querySelector('div.contacts__sidepanel--state[data-test-toggle]');
             if (showMoreBtn) {
               console.log("[CARR] Found 'show more' element. Clicking it...");
@@ -237,7 +241,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.16)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.17)...");
     initTheme();
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
@@ -263,6 +267,8 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       wrapper.style.display = 'block';
       openTabBtn.style.display = 'none';
       localStorage.setItem("multitool_open", "true");
+      // Reload custom fields when opened
+      location.reload();
     });
     document.body.appendChild(openTabBtn);
 
@@ -437,9 +443,9 @@ input:checked + .slider:before {
     let currentTicketId = "";
     let currentTicketLink = "";
     let ticketIdVal = "";
-    const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
-    if (matchUrl) {
-      currentTicketId = matchUrl[1];
+    const matchUrl2 = window.location.pathname.match(/tickets\/(\d+)/);
+    if (matchUrl2) {
+      currentTicketId = matchUrl2[1];
       currentTicketLink = window.location.origin + "/a/tickets/" + currentTicketId;
       ticketIdVal = "#" + currentTicketId;
     }
@@ -457,7 +463,7 @@ input:checked + .slider:before {
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
 
-      // Modified createMenuItem to include a checkbox (all rows get one)
+      // Each field row gets a checkbox via createMenuItem.
       function createMenuItem(labelText, valueText, withCopy = true) {
         const itemDiv = document.createElement('div');
         itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom', 'fieldRow');
@@ -514,7 +520,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account", accountVal));
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       
-      // Fetch CARR from company page and insert below Account Profile (no copy button)
+      // Fetch CARR and insert below Account Profile (no copy button)
       fetchCARR(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue, false));
       });
@@ -611,10 +617,10 @@ input:checked + .slider:before {
         noTicketsDiv.textContent = "No tickets in the last 7 days";
         cardBody.appendChild(noTicketsDiv);
       }
-    }, 5000); // wait 5 seconds for custom fields to populate
+    }, 5000);
 
     //-----------------------------------------------------------
-    // "Copy Selected" Button Logic
+    // "Copy Selected" Button Logic (Markdown formatted)
     //-----------------------------------------------------------
     copyAllBtn.addEventListener('click', function() {
       const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
@@ -622,17 +628,16 @@ input:checked + .slider:before {
       const link = window.location.origin + "/a/tickets/" + currentID;
       let copyText = `**Ticket ID**: [#${currentID}](${link})\n`;
 
-      // Iterate through all field rows with checkboxes
+      // Iterate over each field row; include if checkbox is checked
       const fieldRows = document.querySelectorAll('.fieldRow');
       fieldRows.forEach(row => {
         const checkbox = row.querySelector('.field-selector');
         if (checkbox && checkbox.checked) {
-          // The label span is the first span (after the checkbox)
+          // The label is the first span after the checkbox
           const labelSpan = row.querySelector('span');
-          // The value is the next sibling element (the one with bg-light)
+          // The value is in the element with the bg-light class
           const valueEl = row.querySelector('.bg-light');
           if (labelSpan && valueEl) {
-            // Remove the trailing ": " from label
             const labelText = labelSpan.textContent.replace(/:\s*$/, "");
             const valueText = valueEl.textContent.trim();
             copyText += `**${labelText}**: ${valueText}\n`;
@@ -640,7 +645,7 @@ input:checked + .slider:before {
         }
       });
 
-      // Include summary if checked
+      // Include Summary if checked
       const summaryChecked = document.getElementById('include-summary');
       if (summaryChecked && summaryChecked.checked) {
         const summaryText = getSummary();
@@ -664,6 +669,17 @@ input:checked + .slider:before {
     makeDraggable(wrapper, dragHandleBtn);
     console.log("[MultiTool Beast] Loaded (v1.34.16).");
   }
+
+  //-----------------------------------------------------------
+  // Auto-reload tool on ticket change
+  //-----------------------------------------------------------
+  setInterval(() => {
+    const newTicketId = extractTicketId();
+    if (newTicketId && newTicketId !== currentTicketIdGlobal) {
+      console.log("[MultiTool Beast] Ticket ID changed from", currentTicketIdGlobal, "to", newTicketId, "- reloading page.");
+      location.reload();
+    }
+  }, 3000);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initTool);
