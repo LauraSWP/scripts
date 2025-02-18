@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.37
+// @version      1.38
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -23,7 +23,7 @@
   }
 
   //-----------------------------------------------------------
-  // 1) Inject Bootstrap
+  // 1) Inject Bootstrap CSS
   //-----------------------------------------------------------
   const bootstrapLink = document.createElement('link');
   bootstrapLink.rel = 'stylesheet';
@@ -31,7 +31,7 @@
   document.head.appendChild(bootstrapLink);
 
   //-----------------------------------------------------------
-  // 2) Minimal Dark Mode CSS
+  // 2) Minimal Dark Mode CSS Overrides
   //-----------------------------------------------------------
   const nightModeCSS = `
 /* Minimal Dark Mode Overrides */
@@ -70,8 +70,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     localStorage.setItem('fdTheme', themeName);
   }
   function toggleTheme() {
-    const current = localStorage.getItem('fdTheme');
-    if (current === 'theme-dark') {
+    if (localStorage.getItem('fdTheme') === 'theme-dark') {
       setTheme('theme-light');
       removeNightModeCSS();
     } else {
@@ -89,7 +88,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   //-----------------------------------------------------------
-  // 4) Draggable (position persistence)
+  // 4) Draggable Function (with position persistence)
   //-----------------------------------------------------------
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -152,15 +151,14 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   //-----------------------------------------------------------
-  // 7) Format Currency
+  // 7) Format Currency (e.g., 300000 => 300.000$)
   //-----------------------------------------------------------
   function formatCurrency(num) {
-    // e.g. "300000" => "300.000$"
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
   }
 
   //-----------------------------------------------------------
-  // 8) Fetch CARR from Company Profile
+  // 8) Fetch CARR from Company Page using a hidden iframe
   //-----------------------------------------------------------
   function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
@@ -168,46 +166,51 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       const relURL = companyElem.getAttribute('href');
       const companyURL = window.location.origin + relURL;
       console.log("[CARR] Found company link on ticket page. Company URL:", companyURL);
-
-      fetch(companyURL, { credentials: 'include' })
-        .then(response => {
-          console.log("[CARR] Fetch response status:", response.status, response.statusText);
-          return response.text();
-        })
-        .then(htmlText => {
-          console.log("[CARR] Company page HTML length:", htmlText.length);
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(htmlText, "text/html");
-
-          const carrParent = doc.querySelector('[data-test-field-content="CARR (converted)"]');
-          if (carrParent) {
-            console.log("[CARR] Found parent container =>", carrParent.outerHTML);
-          } else {
-            console.log("[CARR] Parent container not found for data-test-field-content='CARR (converted)'.");
+      
+      // Create a hidden iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.display = "none";
+      iframe.src = companyURL;
+      
+      iframe.onload = function() {
+        console.log("[CARR] Company iframe loaded. Waiting for full render...");
+        // Wait an extra 5 seconds for Ember to render the page
+        setTimeout(() => {
+          try {
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            // Log the parent container outerHTML if found
+            const carrParent = doc.querySelector('[data-test-field-content="CARR (converted)"]');
+            if (carrParent) {
+              console.log("[CARR] Found parent container:", carrParent.outerHTML);
+            } else {
+              console.log("[CARR] Parent container not found.");
+            }
+            // Now target the inner element with the number
+            const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] .text__content.text--small.text--semibold');
+            if (carrDiv) {
+              console.log("[CARR] Found final element:", carrDiv.outerHTML);
+            } else {
+              console.log("[CARR] Final element not found.");
+            }
+            let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
+            console.log("[CARR] Extracted text content:", carrValue);
+            if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
+              carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
+              console.log("[CARR] Formatted value =>", carrValue);
+            } else {
+              console.log("[CARR] Not numeric or missing => 'N/A'.");
+            }
+            document.body.removeChild(iframe);
+            callback(carrValue);
+          } catch (e) {
+            console.error("[CARR] Error accessing iframe content:", e);
+            document.body.removeChild(iframe);
+            callback("N/A");
           }
-
-          const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] .text__content.text--small.text--semibold');
-          if (carrDiv) {
-            console.log("[CARR] Found final element =>", carrDiv.outerHTML);
-          } else {
-            console.log("[CARR] Did NOT find final text__content element.");
-          }
-
-          let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
-          console.log("[CARR] Extracted text content:", carrValue);
-
-          if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
-            carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
-            console.log("[CARR] Formatted =>", carrValue);
-          } else {
-            console.log("[CARR] Not numeric or missing => 'N/A'.");
-          }
-          callback(carrValue);
-        })
-        .catch(err => {
-          console.error("[CARR] Fetching company data failed:", err);
-          callback("N/A");
-        });
+        }, 5000);
+      };
+      
+      document.body.appendChild(iframe);
     } else {
       console.log("[CARR] No company link found on the ticket page => 'N/A'.");
       callback("N/A");
@@ -219,7 +222,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.8)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.9)...");
 
     initTheme();
 
@@ -230,11 +233,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     // Retrieve stored position if available
     const storedPos = localStorage.getItem("multitool_position");
     let posStyles = {};
-    if (storedPos) {
-      posStyles = JSON.parse(storedPos);
-    }
+    if (storedPos) { posStyles = JSON.parse(storedPos); }
 
-    // ---- Create an open tab button
+    // ---- Open Tab Button ----
     const openTabBtn = document.createElement('button');
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
@@ -255,7 +256,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     document.body.appendChild(openTabBtn);
 
-    // ---- Create the main wrapper (resizable)
+    // ---- Outer Wrapper (Resizable) ----
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     if (storedPos && storedPos !== "{}") {
@@ -277,19 +278,19 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // ---- Create the card container
+    // ---- Main Card Container (Bootstrap Card) ----
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
     container.classList.add('card', 'text-dark', 'bg-white');
     container.style.cursor = 'default';
     wrapper.appendChild(container);
 
-    // ---- Card Header
+    // ---- Card Header ----
     const headerArea = document.createElement('div');
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left side: Tealium icon + title
+    // Left header: Tealium icon + Title.
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -304,7 +305,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Right side: drag handle + close button
+    // Right header: Drag handle + Close button.
     const rightHeaderDiv = document.createElement('div');
     rightHeaderDiv.classList.add('d-flex', 'align-items-center');
     const dragHandleBtn = document.createElement('button');
@@ -313,7 +314,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     dragHandleBtn.style.cursor = 'move';
     dragHandleBtn.title = 'Drag to move MultiTool Beast';
     rightHeaderDiv.appendChild(dragHandleBtn);
-
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
     closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
@@ -326,12 +326,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     rightHeaderDiv.appendChild(closeBtn);
     headerArea.appendChild(rightHeaderDiv);
 
-    // ---- Card Body
+    // ---- Card Body ----
     const cardBody = document.createElement('div');
     cardBody.classList.add('card-body', 'p-3');
     container.appendChild(cardBody);
 
-    // ---- Top row: Copy All, Arrows, Theme Toggle
+    // ---- Top Row: Copy All, Scroll Arrows, Theme Toggle ----
     const topRowDiv = document.createElement('div');
     topRowDiv.classList.add('mb-2');
     cardBody.appendChild(topRowDiv);
@@ -359,18 +359,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // Theme toggle (sun/moon)
+    // Sun/Moon Toggle Switch
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
-
     const themeToggleInput = document.createElement('input');
     themeToggleInput.type = 'checkbox';
     themeToggleInput.id = 'slider';
-
     const themeToggleSpan = document.createElement('span');
     themeToggleSpan.className = 'slider round';
-
     themeToggleLabel.appendChild(themeToggleInput);
     themeToggleLabel.appendChild(themeToggleSpan);
     topRowDiv.appendChild(themeToggleLabel);
@@ -402,7 +399,6 @@ input:checked + .slider:before {
 }
 `;
     document.head.appendChild(sliderStyle);
-
     function refreshCheckbox() {
       const stored = localStorage.getItem('fdTheme');
       themeToggleInput.checked = stored !== 'theme-dark';
@@ -413,7 +409,7 @@ input:checked + .slider:before {
       refreshCheckbox();
     });
 
-    // "Include Summary" checkbox
+    // ---- "Include Summary" Checkbox ----
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
     const summaryCheckbox = document.createElement('input');
@@ -423,12 +419,11 @@ input:checked + .slider:before {
     const summaryLabel = document.createElement('label');
     summaryLabel.textContent = "Include Summary";
     summaryLabel.htmlFor = 'include-summary';
-
     summaryRowDiv.appendChild(summaryCheckbox);
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Parse ticket ID
+    // ---- Parse Ticket ID (#ID) ----
     let currentTicketId = "";
     let currentTicketLink = "";
     let ticketIdVal = "";
@@ -439,54 +434,38 @@ input:checked + .slider:before {
       ticketIdVal = "#" + currentTicketId;
     }
 
-    // Wait for the DOM to load + an extra delay so the link is present
+    // ---- After delay, populate custom field data ----
     setTimeout(() => {
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       const accountVal = getFieldValue(accountInput);
-
       const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
       const profileVal = getFieldValue(profileInput);
-
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       const urlsVal = urlsTextarea ? urlsTextarea.value.trim() : "";
 
       function createMenuItem(labelText, valueText) {
         const itemDiv = document.createElement('div');
         itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom');
-
         const label = document.createElement('span');
         label.textContent = labelText + ": ";
         label.style.fontWeight = 'bold';
         itemDiv.appendChild(label);
-
         if (valueText) {
           const lowerVal = valueText.trim().toLowerCase();
-          if (lowerVal === 'account' || lowerVal === 'profile') {
-            valueText = "";
-          }
+          if (lowerVal === 'account' || lowerVal === 'profile') { valueText = ""; }
         }
-
         let valueEl;
-        if (
-          labelText.toLowerCase() === "relevant urls" &&
-          valueText &&
-          (valueText.startsWith("http") || valueText.startsWith("www"))
-        ) {
-          // It's a link
+        if (labelText.toLowerCase() === "relevant urls" && valueText && (valueText.startsWith("http") || valueText.startsWith("www"))) {
           valueEl = document.createElement('a');
           valueEl.href = valueText;
           valueEl.target = "_blank";
           valueEl.textContent = valueText;
         } else {
-          // Just plain text
           valueEl = document.createElement('span');
           valueEl.textContent = valueText || "N/A";
         }
-
         valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
         itemDiv.appendChild(valueEl);
-
-        // Copy button
         const copyBtn = document.createElement('button');
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'ml-2');
@@ -501,15 +480,13 @@ input:checked + .slider:before {
           }
         });
         itemDiv.appendChild(copyBtn);
-
         return itemDiv;
       }
 
-      // Add fields
       cardBody.appendChild(createMenuItem("Ticket ID", ticketIdVal));
       cardBody.appendChild(createMenuItem("Account", accountVal));
 
-      // Copy Account/Profile
+      // ---- New Button: Copy Account/Profile ("accountname/profilename") ----
       const copyAccProfBtn = document.createElement('button');
       copyAccProfBtn.textContent = "Copy Account/Profile";
       copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2');
@@ -527,12 +504,12 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // Fetch & display CARR
+      // ---- Fetch & display CARR from Company Profile via hidden iframe ----
       fetchCARR(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue));
       });
 
-      // Recent Tickets (last 7 days)
+      // ---- Recent Tickets (last 7 days) ----
       function getRecentTickets() {
         const tickets = [];
         const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -583,12 +560,8 @@ input:checked + .slider:before {
           ticketLink.classList.add('mr-2');
           ticketLink.style.color = '#007bff';
           ticketLink.style.textDecoration = 'none';
-          ticketLink.addEventListener('mouseover', () => {
-            ticketLink.style.textDecoration = 'underline';
-          });
-          ticketLink.addEventListener('mouseout', () => {
-            ticketLink.style.textDecoration = 'none';
-          });
+          ticketLink.addEventListener('mouseover', () => { ticketLink.style.textDecoration = 'underline'; });
+          ticketLink.addEventListener('mouseout', () => { ticketLink.style.textDecoration = 'none'; });
           ticketDiv.appendChild(ticketLink);
 
           const copyTicketBtn = document.createElement('button');
@@ -611,33 +584,27 @@ input:checked + .slider:before {
         noTicketsDiv.textContent = "No tickets in the last 7 days";
         cardBody.appendChild(noTicketsDiv);
       }
-    }, 5000); // wait 5 seconds before fetching data
+    }, 5000); // wait 5 seconds for the company page to fully render
 
-    // "Copy All" logic
+    // ---- "Copy All" Button Logic (formatted for Slack/Markdown) ----
     copyAllBtn.addEventListener('click', function() {
       const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
       const currentID = matchUrl ? matchUrl[1] : "";
       const link = window.location.origin + "/a/tickets/" + currentID;
-
       const ticketPart = `**Ticket ID**: [#${currentID}](${link})\n`;
-
       const accountInput = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
       let acc = getFieldValue(accountInput);
       if (acc && acc.trim().toLowerCase() === "account") acc = "";
-
       const profileInput = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
       let prof = getFieldValue(profileInput);
       if (prof && prof.trim().toLowerCase() === "profile") prof = "";
-
       const urlsTextarea = document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]');
       let relUrls = urlsTextarea ? urlsTextarea.value.trim() : "";
       if (!relUrls) relUrls = "N/A";
-
       let textToCopy = ticketPart +
-        `**Account**: ${acc || "N/A"}\n` +
-        `**Profile**: ${prof || "N/A"}\n` +
-        `**Relevant URLs**: ${relUrls}\n`;
-
+                       `**Account**: ${acc || "N/A"}\n` +
+                       `**Profile**: ${prof || "N/A"}\n` +
+                       `**Relevant URLs**: ${relUrls}\n`;
       const summaryChecked = document.getElementById('include-summary');
       if (summaryChecked && summaryChecked.checked) {
         const summaryText = getSummary();
@@ -645,7 +612,6 @@ input:checked + .slider:before {
           textToCopy += `\n**Summary**:\n${summaryText}\n`;
         }
       }
-
       navigator.clipboard.writeText(textToCopy).then(() => {
         copyAllBtn.textContent = "Copied All!";
         setTimeout(() => { copyAllBtn.textContent = "Copy All"; }, 2000);
@@ -654,13 +620,12 @@ input:checked + .slider:before {
       });
     });
 
-    // Insert the wrapper & enable dragging
+    // ---- Append the wrapper & enable dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-    console.log("[MultiTool Beast] Loaded (v1.34.8) - waiting 5s before fetching company data...");
+    console.log("[MultiTool Beast] Loaded (v1.34.9) - waiting 5s before fetching company data...");
   }
 
-  // If DOM not ready, wait, else init
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initTool);
   } else {
