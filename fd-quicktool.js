@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.58
+// @version      1.59
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -44,13 +44,21 @@ button.copy-btn {
   padding: 4px 15px 5px;
 }
 
-/* Format toggle styling */
-#format-toggle {
+/* Slack/JIRA button group */
+#format-toggle-group {
+  display: inline-flex;
+  vertical-align: middle;
   margin-left: 8px;
+}
+#format-toggle-group button {
   font-size: 12px;
+  margin-right: 2px;
   cursor: pointer;
-  text-decoration: underline;
-  color: #007bff;
+}
+#format-toggle-group button.active {
+  background-color: #007bff;
+  color: #fff;
+  border-color: #007bff;
 }
 
 /* Slider (night mode toggle) */
@@ -132,7 +140,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTheme function
+  // initTheme & toggleTheme
   // ========================================================
   function initTheme() {
     const storedTheme = localStorage.getItem('fdTheme');
@@ -140,6 +148,16 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       applyNightModeCSS();
     } else {
       removeNightModeCSS();
+    }
+  }
+  function toggleTheme() {
+    const stored = localStorage.getItem('fdTheme');
+    if (stored === 'theme-dark') {
+      localStorage.setItem('fdTheme', 'theme-light');
+      removeNightModeCSS();
+    } else {
+      localStorage.setItem('fdTheme', 'theme-dark');
+      applyNightModeCSS();
     }
   }
 
@@ -173,7 +191,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       let parent = inputElement.parentElement;
       if (parent) { val = parent.innerText; }
     }
-    return val ? val.trim() : "";
+
+    // If the resulting value is "Account" or "Profile", treat as empty => "N/A"
+    if (!val || val.trim() === "" || val.trim().toLowerCase() === "account" || val.trim().toLowerCase() === "profile") {
+      val = "N/A";
+    }
+    return val.trim();
   }
 
   function getSummary() {
@@ -199,7 +222,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     function elementDrag(e) {
       e.preventDefault();
       pos1 = pos3 - e.clientX;
-      pos2 = e.clientY - pos4; 
+      pos2 = e.clientY - pos4;
       pos3 = e.clientX;
       pos4 = e.clientY;
       elmnt.style.top = (elmnt.offsetTop + pos2) + "px";
@@ -222,7 +245,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       const relURL = companyElem.getAttribute('href');
       const companyURL = window.location.origin + relURL;
       console.log("[CARR] Found company link. Company URL:", companyURL);
-      
+
       const iframe = document.createElement('iframe');
       iframe.style.position = "absolute";
       iframe.style.top = "-9999px";
@@ -231,7 +254,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       iframe.style.height = "768px";
       iframe.style.visibility = "visible";
       iframe.src = companyURL;
-      
+
       iframe.onload = function() {
         console.log("[CARR] Offscreen iframe loaded. Waiting 5 seconds for initial render...");
         setTimeout(() => {
@@ -276,7 +299,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           }
         }, 5000);
       };
-      
+
       document.body.appendChild(iframe);
     } else {
       console.log("[CARR] No company link found. Returning 'N/A'.");
@@ -284,9 +307,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // ========================================================
   // populateData
-  // ========================================================
   function populateData() {
     const dynamicContainer = document.getElementById("multitool-fields-container");
     if (!dynamicContainer) return;
@@ -296,25 +317,26 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       const itemDiv = document.createElement('div');
       itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom', 'fieldRow');
       if (rowId) itemDiv.id = rowId;
-      
+
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = true;
       checkbox.classList.add('field-selector');
       checkbox.style.marginRight = "5px";
       itemDiv.appendChild(checkbox);
-      
+
       const label = document.createElement('span');
       label.textContent = labelText + ": ";
       label.style.fontWeight = 'bold';
       itemDiv.appendChild(label);
-      
+
       let finalValue = valueText || "N/A";
+
       // If it's a URL, linkify
       if (labelText.toLowerCase() === "relevant urls" && finalValue && (finalValue.startsWith("http") || finalValue.startsWith("www"))) {
         const linkEl = document.createElement('a');
         linkEl.href = finalValue;
-        linkEl.target = "_blank";
+        linkEl.target = '_blank';
         linkEl.textContent = finalValue;
         linkEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
         itemDiv.appendChild(linkEl);
@@ -324,7 +346,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
         itemDiv.appendChild(valueEl);
       }
-      
+
       if (withCopy) {
         const copyBtn = document.createElement('button');
         copyBtn.textContent = "Copy";
@@ -465,7 +487,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   // ========================================================
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.35.0)...");
+    console.log("[MultiTool Beast] Initializing (v1.36.1)...");
     initTheme();
 
     // We'll default to isOpen=false so the open button is visible
@@ -615,22 +637,42 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       refreshCheckbox();
     });
 
-    // Format toggle (Slack vs JIRA)
+    // Slack/JIRA button group
     let formatMode = 'slack'; // default to Slack
-    const formatToggle = document.createElement('span');
-    formatToggle.id = 'format-toggle';
-    formatToggle.textContent = 'Format: Slack';
-    topRowDiv.appendChild(formatToggle);
-    formatToggle.addEventListener('click', () => {
-      // Toggle
-      if (formatMode === 'slack') {
-        formatMode = 'jira';
-        formatToggle.textContent = 'Format: JIRA';
+    const formatGroup = document.createElement('div');
+    formatGroup.id = 'format-toggle-group';
+
+    const slackBtn = document.createElement('button');
+    slackBtn.textContent = "Slack";
+    slackBtn.type = "button";
+    slackBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
+    slackBtn.style.marginRight = "2px";
+
+    const jiraBtn = document.createElement('button');
+    jiraBtn.textContent = "JIRA";
+    jiraBtn.type = "button";
+    jiraBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
+
+    // Mark Slack as active by default
+    slackBtn.classList.add('active');
+
+    function setFormat(mode) {
+      formatMode = mode;
+      if (mode === 'slack') {
+        slackBtn.classList.add('active');
+        jiraBtn.classList.remove('active');
       } else {
-        formatMode = 'slack';
-        formatToggle.textContent = 'Format: Slack';
+        slackBtn.classList.remove('active');
+        jiraBtn.classList.add('active');
       }
-    });
+    }
+
+    slackBtn.addEventListener('click', () => setFormat('slack'));
+    jiraBtn.addEventListener('click', () => setFormat('jira'));
+
+    formatGroup.appendChild(slackBtn);
+    formatGroup.appendChild(jiraBtn);
+    topRowDiv.appendChild(formatGroup);
 
     // "Include Summary" checkbox
     const summaryRowDiv = document.createElement('div');
@@ -664,22 +706,29 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           const labelSpan = row.querySelector('span');
           const valueEl = row.querySelector('.bg-light');
           if (labelSpan && valueEl) {
-            const labelText = labelSpan.textContent.replace(/:\s*$/, "");
+            let labelText = labelSpan.textContent.replace(/:\s*$/, "");
             let valueText = valueEl.textContent.trim();
 
             if (labelText.toLowerCase() === "ticket id") {
               const numericId = valueText.replace("#", "");
               const link = window.location.origin + "/a/tickets/" + numericId;
               if (formatMode === 'jira') {
-                // Markdown format for JIRA
+                // JIRA/Markdown style
+                labelText = `**${labelText}**`;
                 valueText = `[#${numericId}](${link})`;
               } else {
-                // Slack (plain text)
+                // Slack style => no bold, no markup
+                labelText = labelText;
                 valueText = `#${numericId} - ${link}`;
               }
+            } else {
+              // If JIRA => bold label
+              if (formatMode === 'jira') {
+                labelText = `**${labelText}**`;
+              }
             }
-            // Basic bolding of the label
-            copyText += `*${labelText}*: ${valueText}\n`;
+
+            copyText += `${labelText}: ${valueText}\n`;
           }
         }
       });
@@ -688,7 +737,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       if (summaryChecked && summaryChecked.checked) {
         const summaryText = getSummary();
         if (summaryText) {
-          copyText += `\n*Summary*:\n${summaryText}\n`;
+          if (formatMode === 'jira') {
+            copyText += `\n**Summary**:\n${summaryText}\n`;
+          } else {
+            copyText += `\nSummary:\n${summaryText}\n`;
+          }
         }
       }
 
@@ -718,7 +771,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.appendChild(dragHandleBtn);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("[MultiTool Beast] Loaded (v1.35.0).");
+    console.log("[MultiTool Beast] Loaded (v1.36.1).");
   }
 
   // ========================================================
