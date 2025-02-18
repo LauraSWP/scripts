@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.41
+// @version      1.42
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -158,25 +158,59 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   //-----------------------------------------------------------
-  // 8) Get CARR Value Directly from Ticket Page Sidebar
+  // 8) Fetch CARR from Company Page via Offscreen iFrame
   //-----------------------------------------------------------
-  function getCARRValue(callback) {
-    // Try to locate the CARR value directly in the current DOM.
-    // Based on the provided sidebar HTML, it should be inside:
-    // <div data-test-id="fields-info-carr_usd"> ... <div data-test-field-content="CARR (converted)"> 
-    // and then the child element with class "text__content".
-    const carrElem = document.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
-    if (carrElem) {
-      let carrValue = carrElem.textContent.trim();
-      console.log("[CARR] Found CARR element on ticket page:", carrElem.outerHTML);
-      console.log("[CARR] Extracted value:", carrValue);
-      if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
-        carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
-        console.log("[CARR] Formatted value:", carrValue);
-      }
-      callback(carrValue);
+  function fetchCARR(callback) {
+    const companyElem = document.querySelector('a[href*="/a/companies/"]');
+    if (companyElem) {
+      const relURL = companyElem.getAttribute('href');
+      const companyURL = window.location.origin + relURL;
+      console.log("[CARR] Found company link on ticket page. Company URL:", companyURL);
+      
+      // Create an offscreen iframe so that Ember scripts will run
+      const iframe = document.createElement('iframe');
+      iframe.style.position = "absolute";
+      iframe.style.top = "-9999px";
+      iframe.style.left = "-9999px";
+      iframe.style.width = "1024px";
+      iframe.style.height = "768px";
+      iframe.src = companyURL;
+      
+      iframe.onload = function() {
+        console.log("[CARR] Offscreen iframe loaded. Waiting 5 seconds for full render...");
+        setTimeout(() => {
+          try {
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            // Use the specific container from your provided HTML:
+            // It should be inside the element with data-test-id="fields-info-carr_usd"
+            // and then inside the element with data-test-field-content="CARR (converted)"
+            const carrElem = doc.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
+            if (carrElem) {
+              console.log("[CARR] Found CARR element in iframe:", carrElem.outerHTML);
+            } else {
+              console.log("[CARR] CARR element not found in iframe.");
+            }
+            let carrValue = carrElem ? carrElem.textContent.trim() : "N/A";
+            console.log("[CARR] Extracted value:", carrValue);
+            if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
+              carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
+              console.log("[CARR] Formatted value:", carrValue);
+            } else {
+              console.log("[CARR] Value not numeric or missing => 'N/A'.");
+            }
+            document.body.removeChild(iframe);
+            callback(carrValue);
+          } catch (e) {
+            console.error("[CARR] Error accessing iframe content:", e);
+            document.body.removeChild(iframe);
+            callback("N/A");
+          }
+        }, 5000);
+      };
+      
+      document.body.appendChild(iframe);
     } else {
-      console.log("[CARR] CARR element not found on ticket page. Returning 'N/A'.");
+      console.log("[CARR] No company link found on the ticket page => 'N/A'.");
       callback("N/A");
     }
   }
@@ -190,7 +224,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
     initTheme();
 
-    // Retrieve open/close state (default is open)
+    // Retrieve open/close state (default open)
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
@@ -472,7 +506,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // ---- Get CARR Value from the current DOM (sidebar) ----
+      // ---- Get CARR Value from the current DOM (if available) ----
       function getCARRValue(callback) {
         const carrElem = document.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
         if (carrElem) {
@@ -490,7 +524,7 @@ input:checked + .slider:before {
         }
       }
 
-      // Fetch & display CARR
+      // Fetch & display CARR from company page via getCARRValue() (if not found on ticket page)
       getCARRValue(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue));
       });
@@ -606,7 +640,9 @@ input:checked + .slider:before {
       });
     });
 
-    // ---- Append Wrapper & Enable Dragging ----
+    //-----------------------------------------------------------
+    // Append the wrapper & Enable Dragging
+    //-----------------------------------------------------------
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
     console.log("[MultiTool Beast] Loaded (v1.34.11).");
