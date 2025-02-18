@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.57
+// @version      1.58
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,6 +9,7 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
+
 
 (function() {
   'use strict';
@@ -43,6 +44,15 @@ button.copy-btn {
   padding: 4px 15px 5px;
 }
 
+/* Format toggle styling */
+#format-toggle {
+  margin-left: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  color: #007bff;
+}
+
 /* Slider (night mode toggle) */
 .switch {
   position: relative;
@@ -58,10 +68,7 @@ button.copy-btn {
 .slider {
   position: absolute;
   cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background-color: #ccc;
   transition: .4s;
   border-radius: 34px;
@@ -92,7 +99,7 @@ input:checked + .slider:before {
   document.head.appendChild(customStyle);
 
   // ========================================================
-  // Night Mode CSS (applied dynamically)
+  // Night Mode CSS
   // ========================================================
   const nightModeCSS = `
 /* Night Mode Overrides */
@@ -111,7 +118,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 ::-webkit-scrollbar-thumb { background-color: #333; border-radius: 4px; }
 * { transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
 `;
-
   function applyNightModeCSS() {
     if (!document.getElementById("night-mode-style")) {
       const styleEl = document.createElement('style');
@@ -126,7 +132,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTheme function (previously missing)
+  // initTheme function
   // ========================================================
   function initTheme() {
     const storedTheme = localStorage.getItem('fdTheme');
@@ -138,7 +144,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // Utility & Helper Functions
+  // Utility / Helper
   // ========================================================
   function extractTicketId() {
     const match = window.location.pathname.match(/tickets\/(\d+)/);
@@ -179,7 +185,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
   }
 
-  // Make the tool draggable
+  // Draggable
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
     handle.onmousedown = dragMouseDown;
@@ -209,7 +215,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // Fetch CARR from company page
+  // Fetch CARR
   function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
     if (companyElem) {
@@ -278,7 +284,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // Populate the dynamic fields container
+  // ========================================================
+  // populateData
+  // ========================================================
   function populateData() {
     const dynamicContainer = document.getElementById("multitool-fields-container");
     if (!dynamicContainer) return;
@@ -302,6 +310,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       itemDiv.appendChild(label);
       
       let finalValue = valueText || "N/A";
+      // If it's a URL, linkify
       if (labelText.toLowerCase() === "relevant urls" && finalValue && (finalValue.startsWith("http") || finalValue.startsWith("www"))) {
         const linkEl = document.createElement('a');
         linkEl.href = finalValue;
@@ -321,13 +330,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('copy-btn');
         copyBtn.addEventListener('click', function() {
-          let copyValue = finalValue;
-          if (labelText.toLowerCase() === "ticket id") {
-            const numericId = finalValue.replace("#", "");
-            const link = window.location.origin + "/a/tickets/" + numericId;
-            copyValue = `<${link}|#${numericId}>`; // Slack format
-          }
-          navigator.clipboard.writeText(copyValue).then(() => {
+          // For the single "Copy" button, we won't do Slack vs JIRA logic
+          // We'll just copy the raw text
+          navigator.clipboard.writeText(finalValue).then(() => {
             copyBtn.textContent = "Copied!";
             setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
           }).catch(err => {
@@ -344,6 +349,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
     const ticketIdVal = "#" + currentTicketIdGlobal;
 
+    // Basic fields
     dynamicContainer.appendChild(createMenuItem("Ticket ID", ticketIdVal));
     dynamicContainer.appendChild(createMenuItem("Account", accountVal));
     dynamicContainer.appendChild(createMenuItem("Account Profile", profileVal));
@@ -351,6 +357,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     dynamicContainer.appendChild(carrRow);
     dynamicContainer.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
+    // "Copy Account/Profile" button
     const copyAccProfBtn = document.createElement('button');
     copyAccProfBtn.textContent = "Copy Account/Profile";
     copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2', 'copy-btn');
@@ -384,7 +391,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
               const subject = linkEl.textContent.trim();
               const matchTicketId = href.match(/tickets\/(\d+)/);
               let foundTicketId = matchTicketId ? matchTicketId[1] : "";
-              // Exclude the current ticket from "recent"
               if (foundTicketId && foundTicketId === currentTicketIdGlobal) return;
               tickets.push({ href, subject, date: ticketDate });
             }
@@ -455,17 +461,17 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTool function
+  // initTool
   // ========================================================
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.27-fix)...");
-    initTheme(); // call our restored initTheme
+    console.log("[MultiTool Beast] Initializing (v1.35.0)...");
+    initTheme();
 
-    // By default, let the tool be closed so the open button is visible
+    // We'll default to isOpen=false so the open button is visible
     const isOpen = false;
 
-    // Create the "Open MultiTool" button
+    // "Open" button
     const openTabBtn = document.createElement('button');
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
@@ -490,8 +496,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     // Outer wrapper
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
-
-    // Check if user has a saved position
     const storedPos = localStorage.getItem("multitool_position");
     let posStyles = {};
     if (storedPos) posStyles = JSON.parse(storedPos);
@@ -504,7 +508,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       wrapper.style.bottom = '80px';
       wrapper.style.right = '20px';
     }
-
     wrapper.style.position = 'fixed';
     wrapper.style.zIndex = '9999';
     wrapper.style.width = '360px';
@@ -515,7 +518,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // Main container
+    // Card container
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
     container.classList.add('card', 'text-dark');
@@ -528,7 +531,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
     container.appendChild(headerArea);
 
-    // Left header: icon + text
     const leftHeaderDiv = document.createElement('div');
     leftHeaderDiv.classList.add('d-flex', 'align-items-center');
     const tealiumIcon = document.createElement('img');
@@ -543,7 +545,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     leftHeaderDiv.appendChild(headerText);
     headerArea.appendChild(leftHeaderDiv);
 
-    // Close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
     closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
@@ -560,34 +561,38 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     cardBody.classList.add('card-body', 'p-3');
     container.appendChild(cardBody);
 
-    // Top row with "Copy Selected", up/down arrows, theme toggle
+    // Top row
     const topRowDiv = document.createElement('div');
     topRowDiv.classList.add('mb-2');
     cardBody.appendChild(topRowDiv);
 
+    // "Copy Selected" button
     const copyAllBtn = document.createElement('button');
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
     topRowDiv.appendChild(copyAllBtn);
 
+    // Up arrow
     const arrowUpBtn = document.createElement('button');
     arrowUpBtn.textContent = "↑";
     arrowUpBtn.title = "Scroll to top";
     arrowUpBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
-    topRowDiv.appendChild(arrowUpBtn);
     arrowUpBtn.addEventListener('click', () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
+    topRowDiv.appendChild(arrowUpBtn);
 
+    // Down arrow
     const arrowDownBtn = document.createElement('button');
     arrowDownBtn.textContent = "↓";
     arrowDownBtn.title = "Scroll to bottom";
     arrowDownBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
-    topRowDiv.appendChild(arrowDownBtn);
     arrowDownBtn.addEventListener('click', () => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
+    topRowDiv.appendChild(arrowDownBtn);
 
+    // Night mode toggle
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -610,6 +615,23 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       refreshCheckbox();
     });
 
+    // Format toggle (Slack vs JIRA)
+    let formatMode = 'slack'; // default to Slack
+    const formatToggle = document.createElement('span');
+    formatToggle.id = 'format-toggle';
+    formatToggle.textContent = 'Format: Slack';
+    topRowDiv.appendChild(formatToggle);
+    formatToggle.addEventListener('click', () => {
+      // Toggle
+      if (formatMode === 'slack') {
+        formatMode = 'jira';
+        formatToggle.textContent = 'Format: JIRA';
+      } else {
+        formatMode = 'slack';
+        formatToggle.textContent = 'Format: Slack';
+      }
+    });
+
     // "Include Summary" checkbox
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
@@ -629,7 +651,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     dynamicContainer.id = "multitool-fields-container";
     cardBody.appendChild(dynamicContainer);
 
-    // Populate fields
+    // Populate
     populateData();
 
     // "Copy Selected" logic
@@ -644,11 +666,19 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           if (labelSpan && valueEl) {
             const labelText = labelSpan.textContent.replace(/:\s*$/, "");
             let valueText = valueEl.textContent.trim();
+
             if (labelText.toLowerCase() === "ticket id") {
               const numericId = valueText.replace("#", "");
               const link = window.location.origin + "/a/tickets/" + numericId;
-              valueText = `<${link}|#${numericId}>`; // Slack format
+              if (formatMode === 'jira') {
+                // Markdown format for JIRA
+                valueText = `[#${numericId}](${link})`;
+              } else {
+                // Slack (plain text)
+                valueText = `#${numericId} - ${link}`;
+              }
             }
+            // Basic bolding of the label
             copyText += `*${labelText}*: ${valueText}\n`;
           }
         }
@@ -670,7 +700,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       });
     });
 
-    // Append wrapper to body
+    // Insert wrapper
     document.body.appendChild(wrapper);
 
     // Drag handle
@@ -688,7 +718,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.appendChild(dragHandleBtn);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("[MultiTool Beast] Loaded (v1.34.27-fix).");
+    console.log("[MultiTool Beast] Loaded (v1.35.0).");
   }
 
   // ========================================================
@@ -703,7 +733,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // Auto-update on URL change (no full reload)
+  // Auto-update on URL change
   // ========================================================
   setInterval(() => {
     const newTicketId = extractTicketId();
