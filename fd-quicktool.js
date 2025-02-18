@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.60
+// @version      1.61
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -121,7 +121,7 @@ input:checked + .slider:before {
   document.head.appendChild(customStyle);
 
   // ========================================================
-  // Night Mode CSS (applied dynamically)
+  // Night Mode CSS
   // ========================================================
   const nightModeCSS = `
 /* Night Mode Overrides */
@@ -251,7 +251,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // Fetch CARR from company page
+  // Fetch CARR
   function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
     if (companyElem) {
@@ -403,14 +403,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     dynamicContainer.appendChild(copyAccProfBtn);
 
-    // Recent Tickets
+    // Recent Tickets (excluding current ticket)
     function getRecentTickets() {
       const tickets = [];
       const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
       if (!ticketElements.length) return tickets;
       const now = new Date();
       const threshold = 7 * 24 * 60 * 60 * 1000;
-      ticketElements.forEach(ticketEl => {
+      for (let i = 0; i < ticketElements.length; i++) {
+        const ticketEl = ticketElements[i];
         const timeEl = ticketEl.querySelector('[data-test-id="timeline-activity-time"]');
         if (timeEl) {
           let dateStr = timeEl.textContent.trim().replace(',', '');
@@ -422,12 +423,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
               const subject = linkEl.textContent.trim();
               const matchTicketId = href.match(/tickets\/(\d+)/);
               let foundTicketId = matchTicketId ? matchTicketId[1] : "";
-              if (foundTicketId && foundTicketId === currentTicketIdGlobal) return;
+              if (foundTicketId === currentTicketIdGlobal) continue;
               tickets.push({ href, subject, date: ticketDate });
             }
           }
         }
-      });
+      }
       return tickets;
     }
 
@@ -499,10 +500,10 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     console.log("[MultiTool Beast] Initializing (v1.36.2)...");
     initTheme();
 
-    // Default state: closed (so open button shows)
+    // Default state: closed, so open button is visible
     const isOpen = false;
 
-    // Create "Open MultiTool" button (bottom-right)
+    // "Open" button (bottom-right)
     const openTabBtn = document.createElement('button');
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
@@ -549,35 +550,28 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // Build new layout inside wrapper:
-    // 1. Top Bar (above header) with Night Mode toggle on left; Up/Down arrows and Close button on right.
+    // Append the wrapper to the body later (after building our layout)
+
+    // Build new layout:
+    // 1. Top Bar: Night mode toggle (left) and up/down + close buttons (right)
     const topBar = document.createElement('div');
     topBar.id = "multitool-topbar";
-    // Left side: Night Mode toggle
     const topLeft = document.createElement('div');
-    // Reuse the same night mode toggle as before
-    const themeToggleLabel = document.createElement('label');
-    themeToggleLabel.className = 'switch';
-    const themeToggleInput = document.createElement('input');
-    themeToggleInput.type = 'checkbox';
-    themeToggleInput.id = 'slider';
-    const themeToggleSpan = document.createElement('span');
-    themeToggleSpan.className = 'slider round';
-    themeToggleLabel.appendChild(themeToggleInput);
-    themeToggleLabel.appendChild(themeToggleSpan);
-    topLeft.appendChild(themeToggleLabel);
-    // Refresh checkbox state
-    function refreshCheckbox() {
-      const stored = localStorage.getItem('fdTheme');
-      themeToggleInput.checked = stored !== 'theme-dark';
-    }
-    refreshCheckbox();
-    themeToggleInput.addEventListener('change', () => {
+    // Night mode toggle
+    const themeToggleLabelTop = document.createElement('label');
+    themeToggleLabelTop.className = 'switch';
+    const themeToggleInputTop = document.createElement('input');
+    themeToggleInputTop.type = 'checkbox';
+    themeToggleInputTop.id = 'slider-top';
+    const themeToggleSpanTop = document.createElement('span');
+    themeToggleSpanTop.className = 'slider round';
+    themeToggleLabelTop.appendChild(themeToggleInputTop);
+    themeToggleLabelTop.appendChild(themeToggleSpanTop);
+    topLeft.appendChild(themeToggleLabelTop);
+    themeToggleInputTop.addEventListener('change', () => {
       toggleTheme();
-      refreshCheckbox();
     });
     topBar.appendChild(topLeft);
-    // Right side: Up/Down arrows and Close button
     const topRight = document.createElement('div');
     topRight.className = 'topbar-buttons';
     const arrowUpBtn = document.createElement('button');
@@ -607,10 +601,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     topRight.appendChild(arrowDownBtn);
     topRight.appendChild(closeBtn);
     topBar.appendChild(topRight);
-    // Insert topBar into wrapper before the card header.
     wrapper.appendChild(topBar);
 
-    // 2. Card Header: Icon + Title
+    // 2. Card Header: Icon + Title (centered)
     const headerArea = document.createElement('div');
     headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-center', 'py-2', 'px-3');
     const headerIcon = document.createElement('img');
@@ -625,12 +618,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     headerArea.appendChild(headerText);
     wrapper.appendChild(headerArea);
 
-    // 3. Card Body: Contains Copy Selected button + Format Toggle, then Include Summary row, then dynamic fields.
+    // 3. Card Body: Contains two rows – first row: Copy Selected button and Slack/JIRA toggle; second row: Include Summary checkbox; then dynamic fields.
     const cardBody = document.createElement('div');
     cardBody.classList.add('card-body', 'p-3');
     wrapper.appendChild(cardBody);
 
-    // First row: Copy Selected button and JIRA/Slack toggle
+    // First row: Copy Selected and Format Toggle
     const topBodyRow = document.createElement('div');
     topBodyRow.style.display = 'flex';
     topBodyRow.style.alignItems = 'center';
@@ -642,7 +635,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
     topBodyRow.appendChild(copyAllBtn);
 
-    // Format toggle group
     let formatMode = 'slack'; // default to Slack
     const formatGroup = document.createElement('div');
     formatGroup.id = 'format-toggle-group';
@@ -655,7 +647,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     jiraBtn.textContent = "JIRA";
     jiraBtn.type = "button";
     jiraBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
-    // Mark Slack as active by default
     slackBtn.classList.add('active');
     function setFormat(mode) {
       formatMode = mode;
@@ -673,7 +664,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     formatGroup.appendChild(jiraBtn);
     topBodyRow.appendChild(formatGroup);
 
-    // Second row in card body: Include Summary checkbox
+    // Second row: Include Summary checkbox
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
     const summaryCheckbox = document.createElement('input');
@@ -687,7 +678,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Dynamic container for fields
+    // Dynamic fields container
     const dynamicContainer = document.createElement('div');
     dynamicContainer.id = "multitool-fields-container";
     cardBody.appendChild(dynamicContainer);
@@ -743,10 +734,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       });
     });
 
-    // Append wrapper to body
     document.body.appendChild(wrapper);
 
-    // Drag handle (for moving the tool)
+    // Drag handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.classList.add('btn', 'btn-light');
