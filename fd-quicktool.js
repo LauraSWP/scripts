@@ -26,7 +26,7 @@
   border-radius: 10px;
   border: 1px solid #cfd7df;
   color: #313131;
-}
+} 
 
 /* Top Bar styling */
 #multitool-topbar {
