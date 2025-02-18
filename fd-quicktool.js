@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.62
+// @version      1.63
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -154,7 +154,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTheme and toggleTheme functions
+  // initTheme and toggleTheme
   // ========================================================
   function initTheme() {
     const storedTheme = localStorage.getItem('fdTheme');
@@ -205,7 +205,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       let parent = inputElement.parentElement;
       if (parent) { val = parent.innerText; }
     }
-    // Treat "Account" or "Profile" as empty.
     if (!val || val.trim() === "" || val.trim().toLowerCase() === "account" || val.trim().toLowerCase() === "profile") {
       val = "N/A";
     }
@@ -403,7 +402,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     dynamicContainer.appendChild(copyAccProfBtn);
 
-    // Recent Tickets (excluding current ticket)
+    // Recent Tickets: using numeric comparison to filter out current ticket
     function getRecentTickets() {
       const tickets = [];
       const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -423,7 +422,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
               const subject = linkEl.textContent.trim();
               const matchTicketId = href.match(/tickets\/(\d+)/);
               let foundTicketId = matchTicketId ? matchTicketId[1] : "";
-              if (foundTicketId === currentTicketIdGlobal) continue;
+              if (parseInt(foundTicketId,10) === parseInt(currentTicketIdGlobal,10)) continue;
               tickets.push({ href, subject, date: ticketDate });
             }
           }
@@ -480,7 +479,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       dynamicContainer.appendChild(noTicketsDiv);
     }
 
-    // Fetch CARR and update row
+    // Fetch CARR
     fetchCARR(function(carrValue) {
       const carrRowEl = document.getElementById("carrRow");
       if (carrRowEl) {
@@ -493,14 +492,14 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTool: Build entire tool DOM with new layout
+  // initTool: Build the entire tool DOM with the new layout
   // ========================================================
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
     console.log("[MultiTool Beast] Initializing (v1.36.2)...");
     initTheme();
 
-    // Default state: closed, so open button is visible
+    // Default state: closed (so open button shows)
     const isOpen = false;
 
     // "Open" button (bottom-right)
@@ -550,14 +549,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // Append the wrapper to the body later (after building our layout)
-
-    // Build new layout:
-    // 1. Top Bar: Night mode toggle (left) and up/down + close buttons (right)
+    // Append our built layout into the wrapper.
+    // 1. Top Bar with Night Mode toggle (left) and Up/Down arrows + Close button (right)
     const topBar = document.createElement('div');
     topBar.id = "multitool-topbar";
     const topLeft = document.createElement('div');
-    // Night mode toggle
+    // Night mode toggle in top bar (reuse our toggle)
     const themeToggleLabelTop = document.createElement('label');
     themeToggleLabelTop.className = 'switch';
     const themeToggleInputTop = document.createElement('input');
@@ -618,12 +615,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     headerArea.appendChild(headerText);
     wrapper.appendChild(headerArea);
 
-    // 3. Card Body: Contains two rows – first row: Copy Selected button and Slack/JIRA toggle; second row: Include Summary checkbox; then dynamic fields.
+    // 3. Card Body: First row: Copy Selected and Format Toggle; Second row: Include Summary; then dynamic fields.
     const cardBody = document.createElement('div');
     cardBody.classList.add('card-body', 'p-3');
     wrapper.appendChild(cardBody);
 
-    // First row: Copy Selected and Format Toggle
     const topBodyRow = document.createElement('div');
     topBodyRow.style.display = 'flex';
     topBodyRow.style.alignItems = 'center';
@@ -664,7 +660,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     formatGroup.appendChild(jiraBtn);
     topBodyRow.appendChild(formatGroup);
 
-    // Second row: Include Summary checkbox
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
     const summaryCheckbox = document.createElement('input');
@@ -678,14 +673,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Dynamic fields container
     const dynamicContainer = document.createElement('div');
     dynamicContainer.id = "multitool-fields-container";
     cardBody.appendChild(dynamicContainer);
 
     populateData();
 
-    // "Copy Selected" logic
     copyAllBtn.addEventListener('click', function() {
       let copyText = "";
       const fieldRows = document.querySelectorAll('.fieldRow');
@@ -736,7 +729,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
     document.body.appendChild(wrapper);
 
-    // Drag handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.classList.add('btn', 'btn-light');
@@ -755,7 +747,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // Delayed initialization (3 seconds)
+  // Delayed initialization (3s)
   // ========================================================
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
@@ -770,7 +762,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   // ========================================================
   setInterval(() => {
     const newTicketId = extractTicketId();
-    if (newTicketId && newTicketId !== currentTicketIdGlobal) {
+    if (newTicketId && parseInt(newTicketId,10) !== parseInt(currentTicketIdGlobal,10)) {
       console.log("[MultiTool Beast] Ticket changed from", currentTicketIdGlobal, "to", newTicketId, ". Updating fields...");
       currentTicketIdGlobal = newTicketId;
       populateData();
