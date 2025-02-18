@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.43
+// @version      1.44
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,7 +9,7 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
-
+ 
 (function() {
   'use strict';
 
@@ -33,6 +33,14 @@ body, html, .page, .main-content {
   background-color: #121212 !important;
   color: #e0e0e0 !important;
 }
+ .navbar-brand { color: #e0e0e0!important; }
+ .navbar-toggler { border-color: #e0e0e0!important; }
+ .navbar-nav.nav-item.active >.nav-link,
+ .navbar-nav.nav-item.active >.nav-link:hover,
+ .navbar-nav.nav-item.active >.nav-link:focus { color: #e0e0e0!important; background-color: #333!important; }
+ .dropdown-menu { border-color: #333!important; }
+ .dropdown-menu-item { border-color: #333!important; }
+ .dropdown-menu-divider { background-color: #333!important; }
 a, a:visited { color: #bb86fc !important; }
 a:hover, a:focus { color: #9a67ea !important; }
 header, .footer, .sidebar, .navbar { background-color: #1f1f1f !important; border-color: #333 !important; }
