@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.51
+// @version      1.52
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -105,7 +105,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     function elementDrag(e) {
       e.preventDefault();
       pos1 = pos3 - e.clientX;
-      pos2 = e.clientY - pos4; // invert if needed
+      pos2 = e.clientY - pos4;
       pos3 = e.clientX;
       pos4 = e.clientY;
       elmnt.style.top = (elmnt.offsetTop + pos2) + "px";
@@ -184,7 +184,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         setTimeout(() => {
           try {
             const doc = iframe.contentDocument || iframe.contentWindow.document;
-            // Click the "show more" element to reveal extra details
+            // Click the "show more" element
             const showMoreBtn = doc.querySelector('div.contacts__sidepanel--state[data-test-toggle]');
             if (showMoreBtn) {
               console.log("[CARR] Found 'show more' element. Clicking it...");
@@ -490,7 +490,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // Main Card Container (no border, we rely on wrapper)
+    // Main Card Container (no border, rely on wrapper)
     const container = document.createElement('div');
     container.id = "ticket-info-menu";
     container.classList.add('card', 'text-dark');
@@ -534,18 +534,17 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     headerArea.appendChild(closeBtn);
 
-    // Body: We'll have a static top row for "Copy Selected", arrows, night mode,
-    // and a dynamic container for fields
+    // Body area
     const cardBody = document.createElement('div');
     cardBody.classList.add('card-body', 'p-3');
     container.appendChild(cardBody);
 
-    // Top Row
+    // Top row: copy selected, arrows, night mode
     const topRowDiv = document.createElement('div');
     topRowDiv.classList.add('mb-2');
     cardBody.appendChild(topRowDiv);
 
-    // Copy Selected button
+    // Copy Selected
     const copyAllBtn = document.createElement('button');
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1');
@@ -621,7 +620,6 @@ input:checked + .slider:before {
 }
 `;
     document.head.appendChild(sliderStyle);
-
     function refreshCheckbox() {
       const stored = localStorage.getItem('fdTheme');
       themeToggleInput.checked = stored !== 'theme-dark';
@@ -646,20 +644,23 @@ input:checked + .slider:before {
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Create a container for the dynamic fields
+    // Dynamic container for fields
     const dynamicContainer = document.createElement('div');
     dynamicContainer.id = "multitool-fields-container";
     cardBody.appendChild(dynamicContainer);
 
-    // Populate fields now
+    // Populate fields
     populateData();
 
     // "Copy Selected" logic
     copyAllBtn.addEventListener('click', function() {
       const currentID = extractTicketId() || "";
       const link = window.location.origin + "/a/tickets/" + currentID;
-      let copyText = `**Ticket ID**: [#${currentID}](${link})\n`;
 
+      // Start with an empty text (no automatic ticket ID line)
+      let copyText = "";
+
+      // Gather checked fields
       const fieldRows = document.querySelectorAll('.fieldRow');
       fieldRows.forEach(row => {
         const checkbox = row.querySelector('.field-selector');
@@ -674,6 +675,7 @@ input:checked + .slider:before {
         }
       });
 
+      // Possibly add the summary
       const summaryChecked = document.getElementById('include-summary');
       if (summaryChecked && summaryChecked.checked) {
         const summaryText = getSummary();
@@ -693,7 +695,7 @@ input:checked + .slider:before {
     // Append wrapper
     document.body.appendChild(wrapper);
 
-    // Create a dedicated drag handle
+    // Create a separate drag handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.classList.add('btn', 'btn-light');
