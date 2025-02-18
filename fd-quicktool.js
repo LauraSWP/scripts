@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.38
+// @version      1.39
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -158,7 +158,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   //-----------------------------------------------------------
-  // 8) Fetch CARR from Company Page using a hidden iframe
+  // 8) Fetch CARR from Company Page via hidden iframe (waiting for full render)
   //-----------------------------------------------------------
   function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
@@ -167,30 +167,23 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       const companyURL = window.location.origin + relURL;
       console.log("[CARR] Found company link on ticket page. Company URL:", companyURL);
       
-      // Create a hidden iframe
+      // Create a hidden iframe to load the company page
       const iframe = document.createElement('iframe');
       iframe.style.display = "none";
       iframe.src = companyURL;
       
       iframe.onload = function() {
         console.log("[CARR] Company iframe loaded. Waiting for full render...");
-        // Wait an extra 5 seconds for Ember to render the page
+        // Wait an extra 5 seconds to allow Ember to render the page fully
         setTimeout(() => {
           try {
             const doc = iframe.contentDocument || iframe.contentWindow.document;
-            // Log the parent container outerHTML if found
-            const carrParent = doc.querySelector('[data-test-field-content="CARR (converted)"]');
-            if (carrParent) {
-              console.log("[CARR] Found parent container:", carrParent.outerHTML);
-            } else {
-              console.log("[CARR] Parent container not found.");
-            }
-            // Now target the inner element with the number
-            const carrDiv = doc.querySelector('[data-test-field-content="CARR (converted)"] .text__content.text--small.text--semibold');
+            // Use a specific selector that targets the CARR value element
+            const carrDiv = doc.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
             if (carrDiv) {
-              console.log("[CARR] Found final element:", carrDiv.outerHTML);
+              console.log("[CARR] Found CARR element:", carrDiv.outerHTML);
             } else {
-              console.log("[CARR] Final element not found.");
+              console.log("[CARR] CARR element not found.");
             }
             let carrValue = carrDiv ? carrDiv.textContent.trim() : "N/A";
             console.log("[CARR] Extracted text content:", carrValue);
@@ -209,7 +202,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           }
         }, 5000);
       };
-      
+
       document.body.appendChild(iframe);
     } else {
       console.log("[CARR] No company link found on the ticket page => 'N/A'.");
@@ -222,11 +215,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.9)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.10)...");
 
     initTheme();
 
-    // Retrieve open/close state (default open)
+    // Retrieve open/close state (default is open)
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
@@ -359,7 +352,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    // Sun/Moon Toggle Switch
+    // ---- Theme Toggle Switch (Sun/Moon) ----
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
     themeToggleLabel.style.marginLeft = '5px';
@@ -504,7 +497,7 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // ---- Fetch & display CARR from Company Profile via hidden iframe ----
+      // ---- Fetch & display CARR from Company Profile ----
       fetchCARR(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue));
       });
@@ -584,9 +577,9 @@ input:checked + .slider:before {
         noTicketsDiv.textContent = "No tickets in the last 7 days";
         cardBody.appendChild(noTicketsDiv);
       }
-    }, 5000); // wait 5 seconds for the company page to fully render
+    }, 5000); // wait 5 seconds for company page to render
 
-    // ---- "Copy All" Button Logic (formatted for Slack/Markdown) ----
+    // ---- "Copy All" Button Logic (Markdown formatted) ----
     copyAllBtn.addEventListener('click', function() {
       const matchUrl = window.location.pathname.match(/tickets\/(\d+)/);
       const currentID = matchUrl ? matchUrl[1] : "";
@@ -620,10 +613,10 @@ input:checked + .slider:before {
       });
     });
 
-    // ---- Append the wrapper & enable dragging ----
+    // ---- Append Wrapper & Enable Dragging ----
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
-    console.log("[MultiTool Beast] Loaded (v1.34.9) - waiting 5s before fetching company data...");
+    console.log("[MultiTool Beast] Loaded (v1.34.10) - waiting 5s before fetching company data...");
   }
 
   if (document.readyState === 'loading') {
