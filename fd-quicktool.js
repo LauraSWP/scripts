@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.54
+// @version      1.55
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,7 +14,7 @@
   'use strict';
 
   // ========================================================
-  // Consolidated Custom CSS - Insert into head once
+  // Custom CSS (Consolidated)
   // ========================================================
   const customStyle = document.createElement('style');
   customStyle.id = "multitool-custom-styles";
@@ -45,36 +45,36 @@ button.copy-btn {
 
 /* Slider (night mode toggle) */
 .switch {
-  position: relative; 
-  display: inline-block; 
-  width: 40px; 
+  position: relative;
+  display: inline-block;
+  width: 40px;
   height: 20px;
 }
 .switch input {
-  opacity: 0; 
-  width: 0; 
+  opacity: 0;
+  width: 0;
   height: 0;
 }
 .slider {
-  position: absolute; 
-  cursor: pointer; 
-  top: 0; 
-  left: 0; 
-  right: 0; 
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
   bottom: 0;
-  background-color: #ccc; 
-  transition: .4s; 
+  background-color: #ccc;
+  transition: .4s;
   border-radius: 34px;
 }
 .slider.round {
   border-radius: 34px;
 }
 .slider:before {
-  position: absolute; 
+  position: absolute;
   content: "";
-  height: 26px; 
+  height: 26px;
   width: 26px;
-  left: -3px; 
+  left: -3px;
   bottom: -3px;
   transition: .4s;
   background: white url('https://i.ibb.co/FxzBYR9/night.png') no-repeat center / cover;
@@ -91,9 +91,7 @@ input:checked + .slider:before {
 `;
   document.head.appendChild(customStyle);
 
-  // ========================================================
-  // Night mode CSS (will be injected/removed dynamically)
-  // ========================================================
+  // Night mode CSS (applied dynamically)
   const nightModeCSS = `
 /* Night Mode Overrides */
 body, html, .page, .main-content {
@@ -235,17 +233,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // Draggable Function
-  // (Already defined above as makeDraggable)
-  // ========================================================
-
-  // ========================================================
   // Populate Dynamic Fields Container
   // ========================================================
   function populateData() {
     const dynamicContainer = document.getElementById("multitool-fields-container");
     if (!dynamicContainer) return;
-    dynamicContainer.innerHTML = "";
+    dynamicContainer.innerHTML = ""; // clear only the dynamic container
 
     function createMenuItem(labelText, valueText, withCopy = true, rowId = null) {
       const itemDiv = document.createElement('div');
@@ -384,7 +377,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
         const copyTicketBtn = document.createElement('button');
         copyTicketBtn.textContent = "Copy Link";
-        copyTicketBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'copy-btn');
+        copyTicketBtn.classList.add('copy-btn');
         copyTicketBtn.addEventListener('click', function() {
           navigator.clipboard.writeText(ticket.href).then(() => {
             copyTicketBtn.textContent = "Copied!";
@@ -419,7 +412,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   // ========================================================
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.23)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.24)...");
     initTheme();
 
     const storedOpen = localStorage.getItem("multitool_open");
@@ -467,7 +460,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.minHeight = '200px';
     wrapper.style.resize = 'both';
     wrapper.style.overflow = 'auto';
-    // Custom wrapper styles already defined in our CSS block.
+    // Custom wrapper styles already applied via CSS block
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
@@ -550,8 +543,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     themeToggleLabel.appendChild(themeToggleSpan);
     topRowDiv.appendChild(themeToggleLabel);
 
-    // (Slider styles are already injected in our custom CSS block.)
-
     function refreshCheckbox() {
       const stored = localStorage.getItem('fdTheme');
       themeToggleInput.checked = stored !== 'theme-dark';
@@ -632,11 +623,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.appendChild(dragHandleBtn);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("[MultiTool Beast] Loaded (v1.34.23).");
+    console.log("[MultiTool Beast] Loaded (v1.34.24).");
   }
 
   // ========================================================
-  // Auto-update on URL change (without reloading the page)
+  // Auto-update on URL change (without full page reload)
   // ========================================================
   setInterval(() => {
     const newTicketId = extractTicketId();
