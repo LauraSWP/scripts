@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.42
+// @version      1.43
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,26 +13,20 @@
 (function() {
   'use strict';
 
-  //-----------------------------------------------------------
-  // 0) Only run on direct ticket pages (/a/tickets/NNNN)
-  //-----------------------------------------------------------
+  // ----- 0) Only run on direct ticket pages (/a/tickets/NNNN) -----
   const path = window.location.pathname;
   if (!/^\/a\/tickets\/\d+$/.test(path)) {
     console.log("[MultiTool Beast] Not a ticket page. Aborting.");
     return;
   }
 
-  //-----------------------------------------------------------
-  // 1) Inject Bootstrap CSS
-  //-----------------------------------------------------------
+  // ----- 1) Inject Bootstrap CSS -----
   const bootstrapLink = document.createElement('link');
   bootstrapLink.rel = 'stylesheet';
   bootstrapLink.href = 'https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css';
   document.head.appendChild(bootstrapLink);
 
-  //-----------------------------------------------------------
-  // 2) Minimal Dark Mode CSS Overrides
-  //-----------------------------------------------------------
+  // ----- 2) Minimal Dark Mode CSS Overrides -----
   const nightModeCSS = `
 /* Minimal Dark Mode Overrides */
 body, html, .page, .main-content {
@@ -63,9 +57,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (styleEl) styleEl.remove();
   }
 
-  //-----------------------------------------------------------
-  // 3) Theme Toggle Functions
-  //-----------------------------------------------------------
+  // ----- 3) Theme Toggle Functions -----
   function setTheme(themeName) {
     localStorage.setItem('fdTheme', themeName);
   }
@@ -87,9 +79,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  //-----------------------------------------------------------
-  // 4) Draggable Function (with position persistence)
-  //-----------------------------------------------------------
+  // ----- 4) Draggable Function (with position persistence) -----
   function makeDraggable(elmnt, handle) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
     handle.onmousedown = dragMouseDown;
@@ -119,9 +109,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  //-----------------------------------------------------------
-  // 5) Field Value Helper
-  //-----------------------------------------------------------
+  // ----- 5) Field Value Helper -----
   function getFieldValue(inputElement) {
     if (!inputElement) return "";
     let val = inputElement.value;
@@ -142,17 +130,13 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     return val ? val.trim() : "";
   }
 
-  //-----------------------------------------------------------
-  // 6) Summary Helper
-  //-----------------------------------------------------------
+  // ----- 6) Summary Helper -----
   function getSummary() {
     const noteDiv = document.querySelector('.ticket_note[data-note-id]');
     return noteDiv ? noteDiv.textContent.trim() : "";
   }
 
-  //-----------------------------------------------------------
-  // 7) Format Currency (e.g., 300000 => 300.000$)
-  //-----------------------------------------------------------
+  // ----- 7) Format Currency (e.g., 300000 => 300.000$)
   function formatCurrency(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "$";
   }
@@ -167,23 +151,22 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       const companyURL = window.location.origin + relURL;
       console.log("[CARR] Found company link on ticket page. Company URL:", companyURL);
       
-      // Create an offscreen iframe so that Ember scripts will run
+      // Create an iframe that is offscreen but visible so Ember runs
       const iframe = document.createElement('iframe');
       iframe.style.position = "absolute";
       iframe.style.top = "-9999px";
       iframe.style.left = "-9999px";
       iframe.style.width = "1024px";
       iframe.style.height = "768px";
+      iframe.style.visibility = "visible"; // ensure it's rendered
       iframe.src = companyURL;
       
       iframe.onload = function() {
-        console.log("[CARR] Offscreen iframe loaded. Waiting 5 seconds for full render...");
+        console.log("[CARR] Offscreen iframe loaded. Waiting 10 seconds for full render...");
         setTimeout(() => {
           try {
             const doc = iframe.contentDocument || iframe.contentWindow.document;
-            // Use the specific container from your provided HTML:
-            // It should be inside the element with data-test-id="fields-info-carr_usd"
-            // and then inside the element with data-test-field-content="CARR (converted)"
+            // Query using the structure from your provided sidebar HTML
             const carrElem = doc.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
             if (carrElem) {
               console.log("[CARR] Found CARR element in iframe:", carrElem.outerHTML);
@@ -205,7 +188,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
             document.body.removeChild(iframe);
             callback("N/A");
           }
-        }, 5000);
+        }, 10000); // wait 10 seconds
       };
       
       document.body.appendChild(iframe);
@@ -220,11 +203,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   async function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.11)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.13)...");
 
     initTheme();
 
-    // Retrieve open/close state (default open)
+    // Retrieve open/close state (default is open)
     const storedOpen = localStorage.getItem("multitool_open");
     const isOpen = storedOpen === null ? true : (storedOpen !== "false");
 
@@ -506,26 +489,8 @@ input:checked + .slider:before {
       cardBody.appendChild(createMenuItem("Account Profile", profileVal));
       cardBody.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-      // ---- Get CARR Value from the current DOM (if available) ----
-      function getCARRValue(callback) {
-        const carrElem = document.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
-        if (carrElem) {
-          let carrValue = carrElem.textContent.trim();
-          console.log("[CARR] Found CARR element on ticket page:", carrElem.outerHTML);
-          console.log("[CARR] Extracted value:", carrValue);
-          if (carrValue !== "N/A" && !isNaN(carrValue.replace(/[.,]/g, ""))) {
-            carrValue = formatCurrency(carrValue.replace(/[.,]/g, ""));
-            console.log("[CARR] Formatted value:", carrValue);
-          }
-          callback(carrValue);
-        } else {
-          console.log("[CARR] CARR element not found on ticket page. Returning 'N/A'.");
-          callback("N/A");
-        }
-      }
-
-      // Fetch & display CARR from company page via getCARRValue() (if not found on ticket page)
-      getCARRValue(function(carrValue) {
+      // ---- Fetch & display CARR from the Company Page using offscreen iframe ----
+      fetchCARR(function(carrValue) {
         cardBody.appendChild(createMenuItem("CARR", carrValue));
       });
 
@@ -604,7 +569,7 @@ input:checked + .slider:before {
         noTicketsDiv.textContent = "No tickets in the last 7 days";
         cardBody.appendChild(noTicketsDiv);
       }
-    }, 5000);
+    }, 5000); // wait 5 seconds for custom fields to populate
 
     // ---- "Copy All" Button Logic (Markdown formatted) ----
     copyAllBtn.addEventListener('click', function() {
@@ -641,7 +606,7 @@ input:checked + .slider:before {
     });
 
     //-----------------------------------------------------------
-    // Append the wrapper & Enable Dragging
+    // Append Wrapper & Enable Dragging
     //-----------------------------------------------------------
     document.body.appendChild(wrapper);
     makeDraggable(wrapper, dragHandleBtn);
