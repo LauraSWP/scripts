@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.52
+// @version      1.53
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -263,43 +263,50 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       label.style.fontWeight = 'bold';
       itemDiv.appendChild(label);
       
-      if (valueText) {
-        const lowerVal = valueText.trim().toLowerCase();
-        if (lowerVal === 'account' || lowerVal === 'profile') { valueText = ""; }
-      }
-      let valueEl;
-      if (labelText.toLowerCase() === "relevant urls" && valueText && (valueText.startsWith("http") || valueText.startsWith("www"))) {
-        valueEl = document.createElement('a');
-        valueEl.href = valueText;
-        valueEl.target = "_blank";
-        valueEl.textContent = valueText;
+      let finalValue = valueText || "N/A";
+      // For "Ticket ID" row, we might just store the numeric part, but let's keep it for the row text
+      if (labelText.toLowerCase() === "relevant urls" && finalValue && (finalValue.startsWith("http") || finalValue.startsWith("www"))) {
+        // If relevant URLs is a link, create an <a>
+        const linkEl = document.createElement('a');
+        linkEl.href = finalValue;
+        linkEl.target = "_blank";
+        linkEl.textContent = finalValue;
+        linkEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
+        itemDiv.appendChild(linkEl);
       } else {
-        valueEl = document.createElement('span');
-        valueEl.textContent = valueText || "N/A";
+        // Normal text
+        const valueEl = document.createElement('span');
+        valueEl.textContent = finalValue;
+        valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
+        itemDiv.appendChild(valueEl);
       }
-      valueEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
-      itemDiv.appendChild(valueEl);
       
+      // If we want a copy button
       if (withCopy) {
         const copyBtn = document.createElement('button');
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'ml-2');
-        // style like close button but lighter
         copyBtn.style.background = "#b0b0b0";
         copyBtn.style.minWidth = "10px";
         copyBtn.style.padding = "4px 15px 5px";
         copyBtn.addEventListener('click', function() {
-          if (valueText) {
-            navigator.clipboard.writeText(valueText).then(() => {
-              copyBtn.textContent = "Copied!";
-              setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
-            }).catch(err => {
-              console.error("[MultiTool Beast] Copy failed:", err);
-            });
+          let copyValue = finalValue;
+          // If label is "Ticket ID", let's create a link in the copy
+          if (labelText.toLowerCase() === "ticket id") {
+            const numericId = finalValue.replace("#", "");
+            const link = window.location.origin + "/a/tickets/" + numericId;
+            copyValue = `[#${numericId}](${link})`;
           }
+          navigator.clipboard.writeText(copyValue).then(() => {
+            copyBtn.textContent = "Copied!";
+            setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+          }).catch(err => {
+            console.error("[MultiTool Beast] Copy failed:", err);
+          });
         });
         itemDiv.appendChild(copyBtn);
       }
+
       return itemDiv;
     }
 
@@ -431,7 +438,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   //-----------------------------------------------------------
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.34.21)...");
+    console.log("[MultiTool Beast] Initializing (v1.34.23)...");
     initTheme();
 
     // Retrieve open/close state and position
@@ -654,13 +661,9 @@ input:checked + .slider:before {
 
     // "Copy Selected" logic
     copyAllBtn.addEventListener('click', function() {
-      const currentID = extractTicketId() || "";
-      const link = window.location.origin + "/a/tickets/" + currentID;
-
-      // Start with an empty text (no automatic ticket ID line)
+      // We'll gather only from checked rows
       let copyText = "";
 
-      // Gather checked fields
       const fieldRows = document.querySelectorAll('.fieldRow');
       fieldRows.forEach(row => {
         const checkbox = row.querySelector('.field-selector');
@@ -669,7 +672,15 @@ input:checked + .slider:before {
           const valueEl = row.querySelector('.bg-light');
           if (labelSpan && valueEl) {
             const labelText = labelSpan.textContent.replace(/:\s*$/, "");
-            const valueText = valueEl.textContent.trim();
+            let valueText = valueEl.textContent.trim();
+
+            // If the label is "Ticket ID", we transform it into a link
+            if (labelText.toLowerCase() === "ticket id") {
+              const numericId = valueText.replace("#", "");
+              const link = window.location.origin + "/a/tickets/" + numericId;
+              valueText = `[#${numericId}](${link})`;
+            }
+
             copyText += `**${labelText}**: ${valueText}\n`;
           }
         }
@@ -710,7 +721,7 @@ input:checked + .slider:before {
     wrapper.appendChild(dragHandleBtn);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("[MultiTool Beast] Loaded (v1.34.21).");
+    console.log("[MultiTool Beast] Loaded (v1.34.23).");
   }
 
   //-----------------------------------------------------------
