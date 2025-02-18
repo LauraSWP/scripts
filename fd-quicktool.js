@@ -14,7 +14,7 @@
   'use strict';
 
   // ========================================================
-  // Custom CSS (Consolidated)
+  // Consolidated Custom CSS
   // ========================================================
   const customStyle = document.createElement('style');
   customStyle.id = "multitool-custom-styles";
@@ -91,7 +91,7 @@ input:checked + .slider:before {
 `;
   document.head.appendChild(customStyle);
 
-  // Night mode CSS (applied dynamically)
+  // Night mode CSS (injected dynamically)
   const nightModeCSS = `
 /* Night Mode Overrides */
 body, html, .page, .main-content {
@@ -238,7 +238,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   function populateData() {
     const dynamicContainer = document.getElementById("multitool-fields-container");
     if (!dynamicContainer) return;
-    dynamicContainer.innerHTML = ""; // clear only the dynamic container
+    dynamicContainer.innerHTML = ""; // Clear only dynamic part
 
     function createMenuItem(labelText, valueText, withCopy = true, rowId = null) {
       const itemDiv = document.createElement('div');
@@ -415,11 +415,8 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     console.log("[MultiTool Beast] Initializing (v1.34.24)...");
     initTheme();
 
-    const storedOpen = localStorage.getItem("multitool_open");
-    const isOpen = storedOpen === null ? true : (storedOpen !== "false");
-    const storedPos = localStorage.getItem("multitool_position");
-    let posStyles = {};
-    if (storedPos) { posStyles = JSON.parse(storedPos); }
+    // For testing, set open state to false so the open button appears
+    const isOpen = false;
 
     const openTabBtn = document.createElement('button');
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
@@ -444,6 +441,10 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
+    // Use stored position if available, otherwise default to bottom-right
+    const storedPos = localStorage.getItem("multitool_position");
+    let posStyles = {};
+    if (storedPos) posStyles = JSON.parse(storedPos);
     if (storedPos && storedPos !== "{}") {
       wrapper.style.top = posStyles.top;
       wrapper.style.left = posStyles.left;
@@ -460,7 +461,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.minHeight = '200px';
     wrapper.style.resize = 'both';
     wrapper.style.overflow = 'auto';
-    // Custom wrapper styles already applied via CSS block
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
