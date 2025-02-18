@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.59
+// @version      1.60
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,7 +9,6 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
-
 
 (function() {
   'use strict';
@@ -29,10 +28,25 @@
   color: #313131;
 }
 
+/* Top Bar styling */
+#multitool-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  padding: 0 5px;
+}
+
+/* Button group styling for up/down and close */
+.topbar-buttons button {
+  font-size: 12px;
+  margin-left: 5px;
+  cursor: pointer;
+}
+
 /* Close button styling */
 button.btn.btn-sm.btn-outline-danger {
   background: #8fa0ae;
-  float: right;
   min-width: 10px;
   padding: 4px 15px 5px;
 }
@@ -44,7 +58,7 @@ button.copy-btn {
   padding: 4px 15px 5px;
 }
 
-/* Slack/JIRA button group */
+/* Slack/JIRA button group styling */
 #format-toggle-group {
   display: inline-flex;
   vertical-align: middle;
@@ -107,7 +121,7 @@ input:checked + .slider:before {
   document.head.appendChild(customStyle);
 
   // ========================================================
-  // Night Mode CSS
+  // Night Mode CSS (applied dynamically)
   // ========================================================
   const nightModeCSS = `
 /* Night Mode Overrides */
@@ -140,7 +154,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTheme & toggleTheme
+  // initTheme and toggleTheme functions
   // ========================================================
   function initTheme() {
     const storedTheme = localStorage.getItem('fdTheme');
@@ -162,7 +176,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // Utility / Helper
+  // Utility / Helper Functions
   // ========================================================
   function extractTicketId() {
     const match = window.location.pathname.match(/tickets\/(\d+)/);
@@ -191,8 +205,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       let parent = inputElement.parentElement;
       if (parent) { val = parent.innerText; }
     }
-
-    // If the resulting value is "Account" or "Profile", treat as empty => "N/A"
+    // Treat "Account" or "Profile" as empty.
     if (!val || val.trim() === "" || val.trim().toLowerCase() === "account" || val.trim().toLowerCase() === "profile") {
       val = "N/A";
     }
@@ -238,14 +251,14 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // Fetch CARR
+  // Fetch CARR from company page
   function fetchCARR(callback) {
     const companyElem = document.querySelector('a[href*="/a/companies/"]');
     if (companyElem) {
       const relURL = companyElem.getAttribute('href');
       const companyURL = window.location.origin + relURL;
       console.log("[CARR] Found company link. Company URL:", companyURL);
-
+      
       const iframe = document.createElement('iframe');
       iframe.style.position = "absolute";
       iframe.style.top = "-9999px";
@@ -254,7 +267,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       iframe.style.height = "768px";
       iframe.style.visibility = "visible";
       iframe.src = companyURL;
-
+      
       iframe.onload = function() {
         console.log("[CARR] Offscreen iframe loaded. Waiting 5 seconds for initial render...");
         setTimeout(() => {
@@ -299,7 +312,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           }
         }, 5000);
       };
-
+      
       document.body.appendChild(iframe);
     } else {
       console.log("[CARR] No company link found. Returning 'N/A'.");
@@ -307,7 +320,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     }
   }
 
-  // populateData
+  // ========================================================
+  // populateData: Build dynamic fields container
+  // ========================================================
   function populateData() {
     const dynamicContainer = document.getElementById("multitool-fields-container");
     if (!dynamicContainer) return;
@@ -331,12 +346,10 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       itemDiv.appendChild(label);
 
       let finalValue = valueText || "N/A";
-
-      // If it's a URL, linkify
       if (labelText.toLowerCase() === "relevant urls" && finalValue && (finalValue.startsWith("http") || finalValue.startsWith("www"))) {
         const linkEl = document.createElement('a');
         linkEl.href = finalValue;
-        linkEl.target = '_blank';
+        linkEl.target = "_blank";
         linkEl.textContent = finalValue;
         linkEl.classList.add('ml-1', 'p-1', 'bg-light', 'rounded');
         itemDiv.appendChild(linkEl);
@@ -352,8 +365,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         copyBtn.textContent = "Copy";
         copyBtn.classList.add('copy-btn');
         copyBtn.addEventListener('click', function() {
-          // For the single "Copy" button, we won't do Slack vs JIRA logic
-          // We'll just copy the raw text
           navigator.clipboard.writeText(finalValue).then(() => {
             copyBtn.textContent = "Copied!";
             setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
@@ -371,7 +382,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
     const ticketIdVal = "#" + currentTicketIdGlobal;
 
-    // Basic fields
     dynamicContainer.appendChild(createMenuItem("Ticket ID", ticketIdVal));
     dynamicContainer.appendChild(createMenuItem("Account", accountVal));
     dynamicContainer.appendChild(createMenuItem("Account Profile", profileVal));
@@ -379,7 +389,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     dynamicContainer.appendChild(carrRow);
     dynamicContainer.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-    // "Copy Account/Profile" button
     const copyAccProfBtn = document.createElement('button');
     copyAccProfBtn.textContent = "Copy Account/Profile";
     copyAccProfBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mb-2', 'copy-btn');
@@ -470,7 +479,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       dynamicContainer.appendChild(noTicketsDiv);
     }
 
-    // Attempt to fetch CARR
+    // Fetch CARR and update row
     fetchCARR(function(carrValue) {
       const carrRowEl = document.getElementById("carrRow");
       if (carrRowEl) {
@@ -483,17 +492,17 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTool
+  // initTool: Build entire tool DOM with new layout
   // ========================================================
   function initTool() {
     if (document.getElementById("ticket-info-menu")) return;
-    console.log("[MultiTool Beast] Initializing (v1.36.1)...");
+    console.log("[MultiTool Beast] Initializing (v1.36.2)...");
     initTheme();
 
-    // We'll default to isOpen=false so the open button is visible
+    // Default state: closed (so open button shows)
     const isOpen = false;
 
-    // "Open" button
+    // Create "Open MultiTool" button (bottom-right)
     const openTabBtn = document.createElement('button');
     openTabBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openTabBtn.style.position = 'fixed';
@@ -540,84 +549,15 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // Card container
-    const container = document.createElement('div');
-    container.id = "ticket-info-menu";
-    container.classList.add('card', 'text-dark');
-    container.style.cursor = 'default';
-    container.style.border = "none";
-    wrapper.appendChild(container);
-
-    // Header
-    const headerArea = document.createElement('div');
-    headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-between', 'py-2', 'px-3');
-    container.appendChild(headerArea);
-
-    const leftHeaderDiv = document.createElement('div');
-    leftHeaderDiv.classList.add('d-flex', 'align-items-center');
-    const tealiumIcon = document.createElement('img');
-    tealiumIcon.src = 'https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png';
-    tealiumIcon.style.width = '20px';
-    tealiumIcon.style.height = '20px';
-    tealiumIcon.style.marginRight = '8px';
-    const headerText = document.createElement('span');
-    headerText.textContent = 'MultiTool Beast';
-    headerText.style.fontWeight = 'bold';
-    leftHeaderDiv.appendChild(tealiumIcon);
-    leftHeaderDiv.appendChild(headerText);
-    headerArea.appendChild(leftHeaderDiv);
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '×';
-    closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
-    closeBtn.title = 'Close MultiTool Beast';
-    closeBtn.addEventListener('click', () => {
-      wrapper.style.display = 'none';
-      openTabBtn.style.display = 'block';
-      localStorage.setItem("multitool_open", "false");
-    });
-    headerArea.appendChild(closeBtn);
-
-    // Body
-    const cardBody = document.createElement('div');
-    cardBody.classList.add('card-body', 'p-3');
-    container.appendChild(cardBody);
-
-    // Top row
-    const topRowDiv = document.createElement('div');
-    topRowDiv.classList.add('mb-2');
-    cardBody.appendChild(topRowDiv);
-
-    // "Copy Selected" button
-    const copyAllBtn = document.createElement('button');
-    copyAllBtn.textContent = "Copy Selected";
-    copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
-    topRowDiv.appendChild(copyAllBtn);
-
-    // Up arrow
-    const arrowUpBtn = document.createElement('button');
-    arrowUpBtn.textContent = "↑";
-    arrowUpBtn.title = "Scroll to top";
-    arrowUpBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
-    arrowUpBtn.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-    topRowDiv.appendChild(arrowUpBtn);
-
-    // Down arrow
-    const arrowDownBtn = document.createElement('button');
-    arrowDownBtn.textContent = "↓";
-    arrowDownBtn.title = "Scroll to bottom";
-    arrowDownBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
-    arrowDownBtn.addEventListener('click', () => {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    });
-    topRowDiv.appendChild(arrowDownBtn);
-
-    // Night mode toggle
+    // Build new layout inside wrapper:
+    // 1. Top Bar (above header) with Night Mode toggle on left; Up/Down arrows and Close button on right.
+    const topBar = document.createElement('div');
+    topBar.id = "multitool-topbar";
+    // Left side: Night Mode toggle
+    const topLeft = document.createElement('div');
+    // Reuse the same night mode toggle as before
     const themeToggleLabel = document.createElement('label');
     themeToggleLabel.className = 'switch';
-    themeToggleLabel.style.marginLeft = '5px';
     const themeToggleInput = document.createElement('input');
     themeToggleInput.type = 'checkbox';
     themeToggleInput.id = 'slider';
@@ -625,8 +565,8 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     themeToggleSpan.className = 'slider round';
     themeToggleLabel.appendChild(themeToggleInput);
     themeToggleLabel.appendChild(themeToggleSpan);
-    topRowDiv.appendChild(themeToggleLabel);
-
+    topLeft.appendChild(themeToggleLabel);
+    // Refresh checkbox state
     function refreshCheckbox() {
       const stored = localStorage.getItem('fdTheme');
       themeToggleInput.checked = stored !== 'theme-dark';
@@ -636,26 +576,87 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       toggleTheme();
       refreshCheckbox();
     });
+    topBar.appendChild(topLeft);
+    // Right side: Up/Down arrows and Close button
+    const topRight = document.createElement('div');
+    topRight.className = 'topbar-buttons';
+    const arrowUpBtn = document.createElement('button');
+    arrowUpBtn.textContent = "↑";
+    arrowUpBtn.title = "Scroll to top";
+    arrowUpBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
+    arrowUpBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    const arrowDownBtn = document.createElement('button');
+    arrowDownBtn.textContent = "↓";
+    arrowDownBtn.title = "Scroll to bottom";
+    arrowDownBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
+    arrowDownBtn.addEventListener('click', () => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.classList.add('btn', 'btn-sm', 'btn-outline-danger');
+    closeBtn.title = 'Close MultiTool Beast';
+    closeBtn.addEventListener('click', () => {
+      wrapper.style.display = 'none';
+      openTabBtn.style.display = 'block';
+      localStorage.setItem("multitool_open", "false");
+    });
+    topRight.appendChild(arrowUpBtn);
+    topRight.appendChild(arrowDownBtn);
+    topRight.appendChild(closeBtn);
+    topBar.appendChild(topRight);
+    // Insert topBar into wrapper before the card header.
+    wrapper.appendChild(topBar);
 
-    // Slack/JIRA button group
+    // 2. Card Header: Icon + Title
+    const headerArea = document.createElement('div');
+    headerArea.classList.add('card-header', 'd-flex', 'align-items-center', 'justify-content-center', 'py-2', 'px-3');
+    const headerIcon = document.createElement('img');
+    headerIcon.src = 'https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png';
+    headerIcon.style.width = '20px';
+    headerIcon.style.height = '20px';
+    headerIcon.style.marginRight = '8px';
+    const headerText = document.createElement('span');
+    headerText.textContent = 'MultiTool Beast';
+    headerText.style.fontWeight = 'bold';
+    headerArea.appendChild(headerIcon);
+    headerArea.appendChild(headerText);
+    wrapper.appendChild(headerArea);
+
+    // 3. Card Body: Contains Copy Selected button + Format Toggle, then Include Summary row, then dynamic fields.
+    const cardBody = document.createElement('div');
+    cardBody.classList.add('card-body', 'p-3');
+    wrapper.appendChild(cardBody);
+
+    // First row: Copy Selected button and JIRA/Slack toggle
+    const topBodyRow = document.createElement('div');
+    topBodyRow.style.display = 'flex';
+    topBodyRow.style.alignItems = 'center';
+    topBodyRow.style.marginBottom = '8px';
+    cardBody.appendChild(topBodyRow);
+
+    const copyAllBtn = document.createElement('button');
+    copyAllBtn.textContent = "Copy Selected";
+    copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
+    topBodyRow.appendChild(copyAllBtn);
+
+    // Format toggle group
     let formatMode = 'slack'; // default to Slack
     const formatGroup = document.createElement('div');
     formatGroup.id = 'format-toggle-group';
-
     const slackBtn = document.createElement('button');
     slackBtn.textContent = "Slack";
     slackBtn.type = "button";
     slackBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
     slackBtn.style.marginRight = "2px";
-
     const jiraBtn = document.createElement('button');
     jiraBtn.textContent = "JIRA";
     jiraBtn.type = "button";
     jiraBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
-
     // Mark Slack as active by default
     slackBtn.classList.add('active');
-
     function setFormat(mode) {
       formatMode = mode;
       if (mode === 'slack') {
@@ -666,15 +667,13 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         jiraBtn.classList.add('active');
       }
     }
-
     slackBtn.addEventListener('click', () => setFormat('slack'));
     jiraBtn.addEventListener('click', () => setFormat('jira'));
-
     formatGroup.appendChild(slackBtn);
     formatGroup.appendChild(jiraBtn);
-    topRowDiv.appendChild(formatGroup);
+    topBodyRow.appendChild(formatGroup);
 
-    // "Include Summary" checkbox
+    // Second row in card body: Include Summary checkbox
     const summaryRowDiv = document.createElement('div');
     summaryRowDiv.classList.add('mb-2');
     const summaryCheckbox = document.createElement('input');
@@ -688,12 +687,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     summaryRowDiv.appendChild(summaryLabel);
     cardBody.appendChild(summaryRowDiv);
 
-    // Dynamic container
+    // Dynamic container for fields
     const dynamicContainer = document.createElement('div');
     dynamicContainer.id = "multitool-fields-container";
     cardBody.appendChild(dynamicContainer);
 
-    // Populate
     populateData();
 
     // "Copy Selected" logic
@@ -708,31 +706,24 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           if (labelSpan && valueEl) {
             let labelText = labelSpan.textContent.replace(/:\s*$/, "");
             let valueText = valueEl.textContent.trim();
-
             if (labelText.toLowerCase() === "ticket id") {
               const numericId = valueText.replace("#", "");
               const link = window.location.origin + "/a/tickets/" + numericId;
               if (formatMode === 'jira') {
-                // JIRA/Markdown style
                 labelText = `**${labelText}**`;
                 valueText = `[#${numericId}](${link})`;
               } else {
-                // Slack style => no bold, no markup
-                labelText = labelText;
                 valueText = `#${numericId} - ${link}`;
               }
             } else {
-              // If JIRA => bold label
               if (formatMode === 'jira') {
                 labelText = `**${labelText}**`;
               }
             }
-
             copyText += `${labelText}: ${valueText}\n`;
           }
         }
       });
-
       const summaryChecked = document.getElementById('include-summary');
       if (summaryChecked && summaryChecked.checked) {
         const summaryText = getSummary();
@@ -744,7 +735,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           }
         }
       }
-
       navigator.clipboard.writeText(copyText).then(() => {
         copyAllBtn.textContent = "Copied Selected!";
         setTimeout(() => { copyAllBtn.textContent = "Copy Selected"; }, 2000);
@@ -753,10 +743,10 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       });
     });
 
-    // Insert wrapper
+    // Append wrapper to body
     document.body.appendChild(wrapper);
 
-    // Drag handle
+    // Drag handle (for moving the tool)
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.classList.add('btn', 'btn-light');
@@ -771,11 +761,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.appendChild(dragHandleBtn);
     makeDraggable(wrapper, dragHandleBtn);
 
-    console.log("[MultiTool Beast] Loaded (v1.36.1).");
+    console.log("[MultiTool Beast] Loaded (v1.36.2).");
   }
 
   // ========================================================
-  // Delayed initialization (3s)
+  // Delayed initialization (3 seconds)
   // ========================================================
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
