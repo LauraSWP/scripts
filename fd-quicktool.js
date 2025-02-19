@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.72
+// @version      1.73
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -34,7 +34,7 @@
 </svg>`;
 
   /***********************************************
-   * 2) Main CSS: layout, tabs, night mode toggle
+   * 2) Main CSS: layout, tabs, night mode toggle, etc.
    ***********************************************/
   const styleEl = document.createElement('style');
   styleEl.textContent = `
@@ -250,14 +250,9 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
    * 4) Extract Ticket ID (handles /a/tickets/ too)
    ***********************************************/
   function extractTicketId() {
-    // This regex matches either "/tickets/123" or "/a/tickets/123"
     const match = window.location.pathname.match(/(?:\/a)?\/tickets\/(\d+)/);
-    if (match) {
-      return match[1];
-    }
-    return null;
+    return match ? match[1] : null;
   }
-
   let currentTicketId = extractTicketId();
 
   /***********************************************
@@ -268,18 +263,22 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     let val = el.value || el.getAttribute('value') || el.getAttribute('placeholder') || "";
     val = val.trim();
     if (!val && window.Ember && el.id) {
-      try { let view = Ember.View.views && Ember.View.views[el.id]; if (view) val = view.get('value'); } catch(e){}
+      try {
+        let view = Ember.View.views && Ember.View.views[el.id];
+        if (view) val = view.get('value');
+      } catch(e){}
     }
-    if (!val) { let p = el.parentElement; if (p) val = p.innerText.trim(); }
+    if (!val) {
+      let p = el.parentElement;
+      if (p) val = p.innerText.trim();
+    }
     if (!val || ["account", "profile"].includes(val.toLowerCase())) val = "N/A";
     return val;
   }
-
   function getSummary() {
     const note = document.querySelector('.ticket_note[data-note-id]');
     return note ? note.textContent.trim() : "";
   }
-
   function getRecentTickets() {
     const tickets = [];
     const els = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -295,7 +294,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           if (linkEl) {
             const href = linkEl.href;
             const subject = linkEl.textContent.trim();
-            // Also match /a/tickets/...
             const m = href.match(/(?:\/a)?\/tickets\/(\d+)/);
             const foundId = m ? m[1] : "";
             if (currentTicketId && parseInt(foundId,10)===parseInt(currentTicketId,10)) return;
@@ -306,7 +304,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     return tickets;
   }
-
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -314,40 +311,40 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     const compURL = window.location.origin + rel;
     console.log("[CARR] Company URL:", compURL);
     const iframe = document.createElement('iframe');
-    iframe.style.position="absolute";
-    iframe.style.top="-9999px";
-    iframe.style.left="-9999px";
-    iframe.style.width="1024px";
-    iframe.style.height="768px";
-    iframe.style.visibility="visible";
-    iframe.src=compURL;
-    iframe.onload=function(){
-      setTimeout(()=>{
-        try{
+    iframe.style.position = "absolute";
+    iframe.style.top = "-9999px";
+    iframe.style.left = "-9999px";
+    iframe.style.width = "1024px";
+    iframe.style.height = "768px";
+    iframe.style.visibility = "visible";
+    iframe.src = compURL;
+    iframe.onload = function() {
+      setTimeout(() => {
+        try {
           const doc = iframe.contentDocument || iframe.contentWindow.document;
           const showMore = doc.querySelector('div.contacts__sidepanel--state[data-test-toggle]');
           if (showMore) showMore.click();
-          setTimeout(()=>{
-            try{
+          setTimeout(() => {
+            try {
               const cElem = doc.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
               let cVal = cElem ? cElem.textContent.trim() : "N/A";
-              if (cVal!=="N/A" && !isNaN(cVal.replace(/[.,]/g,""))) {
-                cVal = parseInt(cVal.replace(/[.,]/g,""),10).toLocaleString()+"$";
+              if (cVal !== "N/A" && !isNaN(cVal.replace(/[.,]/g, ""))) {
+                cVal = parseInt(cVal.replace(/[.,]/g, ""), 10).toLocaleString() + "$";
               }
               document.body.removeChild(iframe);
               callback(cVal);
-            } catch(e){
+            } catch(e) {
               console.error("[CARR] Error after showMore:", e);
               document.body.removeChild(iframe);
               callback("N/A");
             }
-          },3000);
-        } catch(e){
+          }, 3000);
+        } catch(e) {
           console.error("[CARR] Initial iframe error:", e);
           document.body.removeChild(iframe);
           callback("N/A");
         }
-      },3000);
+      }, 3000);
     };
     document.body.appendChild(iframe);
   }
@@ -355,13 +352,13 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   /***********************************************
    * 6) Slack/JIRA Toggle
    ***********************************************/
-  let formatMode = 'slack'; // default
+  let formatMode = 'slack';
   function setFormat(mode) {
     formatMode = mode;
     const slackBtn = document.getElementById('format-slack-btn');
     const jiraBtn = document.getElementById('format-jira-btn');
     if (!slackBtn || !jiraBtn) return;
-    if (mode==='slack') {
+    if (mode === 'slack') {
       slackBtn.classList.add('active');
       jiraBtn.classList.remove('active');
     } else {
@@ -369,7 +366,6 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       jiraBtn.classList.add('active');
     }
   }
-
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(row => {
@@ -380,17 +376,17 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         if (lblSpan && valEl) {
           let labelText = lblSpan.textContent.replace(/:\s*$/, "");
           let valueText = valEl.textContent.trim();
-          if (labelText.toLowerCase()==="ticket id") {
-            const numericId = valueText.replace("#","");
+          if (labelText.toLowerCase() === "ticket id") {
+            const numericId = valueText.replace("#", "");
             const link = window.location.origin + "/a/tickets/" + numericId;
-            if (formatMode==='jira') {
+            if (formatMode === 'jira') {
               labelText = `**${labelText}**`;
               valueText = `[#${numericId}](${link})`;
             } else {
               valueText = `#${numericId} - ${link}`;
             }
-          } else if (formatMode==='jira') {
-            labelText=`**${labelText}**`;
+          } else if (formatMode === 'jira') {
+            labelText = `**${labelText}**`;
           }
           copyText += `${labelText}: ${valueText}\n`;
         }
@@ -400,7 +396,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (summaryCheck && summaryCheck.checked) {
       const summaryText = getSummary();
       if (summaryText) {
-        if (formatMode==='jira') {
+        if (formatMode === 'jira') {
           copyText += `\n**Summary**:\n${summaryText}\n`;
         } else {
           copyText += `\nSummary:\n${summaryText}\n`;
@@ -408,389 +404,367 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       }
     }
     const copyBtn = document.getElementById('copy-all-selected-btn');
-    navigator.clipboard.writeText(copyText).then(()=>{
+    navigator.clipboard.writeText(copyText).then(() => {
       if (copyBtn) {
-        copyBtn.textContent="Copied Selected!";
-        setTimeout(()=>{ copyBtn.textContent="Copy Selected"; },2000);
+        copyBtn.textContent = "Copied Selected!";
+        setTimeout(() => { copyBtn.textContent = "Copy Selected"; }, 2000);
       }
     });
   }
-
-  /***********************************************
-   * 7) createMenuItem for fields
-   ***********************************************/
-  function createMenuItem(labelText, valueText, withCopy=true) {
+  
+  function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.classList.add('mb-2','pb-2','border-bottom','fieldRow');
-    // Checkbox
     const check = document.createElement('input');
-    check.type='checkbox';
-    check.checked=true;
+    check.type = 'checkbox';
+    check.checked = true;
     check.classList.add('field-selector');
-    check.style.marginRight="5px";
+    check.style.marginRight = "5px";
     row.appendChild(check);
-
-    // Label
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
-    lbl.style.fontWeight='bold';
+    lbl.style.fontWeight = 'bold';
     row.appendChild(lbl);
-
-    // Value
     const finalVal = valueText || "N/A";
-    if (labelText.toLowerCase()==="relevant urls" && finalVal.startsWith("http")) {
+    if (labelText.toLowerCase() === "relevant urls" && finalVal.startsWith("http")) {
       const link = document.createElement('a');
-      link.href=finalVal;
-      link.target="_blank";
-      link.textContent=finalVal;
+      link.href = finalVal;
+      link.target = "_blank";
+      link.textContent = finalVal;
       link.classList.add('ml-1','p-1','bg-light','rounded');
       row.appendChild(link);
     } else {
-      const valSpan = document.createElement('span');
-      valSpan.textContent=finalVal;
-      valSpan.classList.add('ml-1','p-1','bg-light','rounded');
-      row.appendChild(valSpan);
+      const span = document.createElement('span');
+      span.textContent = finalVal;
+      span.classList.add('ml-1','p-1','bg-light','rounded');
+      row.appendChild(span);
     }
-
-    // Copy icon
     if (withCopy) {
-      const cBtn=document.createElement('button');
-      cBtn.classList.add('copy-btn');
-      cBtn.innerHTML=copyIconSVG;
-      cBtn.title="Copy";
-      cBtn.addEventListener('click',()=>{
-        navigator.clipboard.writeText(finalVal).then(()=>{
-          cBtn.innerHTML=`<span style="color:green;">&#10003;</span>`;
-          setTimeout(()=>{ cBtn.innerHTML=copyIconSVG;},2000);
+      const btn = document.createElement('button');
+      btn.classList.add('copy-btn');
+      btn.innerHTML = copyIconSVG;
+      btn.title = "Copy";
+      btn.addEventListener('click', () => {
+        navigator.clipboard.writeText(finalVal).then(() => {
+          btn.innerHTML = `<span style="color:green;">&#10003;</span>`;
+          setTimeout(() => { btn.innerHTML = copyIconSVG; }, 2000);
         });
       });
-      row.appendChild(cBtn);
+      row.appendChild(btn);
     }
     return row;
   }
 
   /***********************************************
-   * 8) Build Pinned Tab
+   * 7) Build Pinned Tab Content
    ***********************************************/
   function buildPinnedTabContent() {
-    const pinnedGrid = document.createElement('div');
-    pinnedGrid.id='pinned-grid';
-    const pinnedItems = [
-      { icon:'📄', label:'Docs', link:'https://docs.google.com/' },
-      { icon:'🔗', label:'Website', link:'https://www.example.com' },
-      { icon:'📊', label:'Analytics', link:'https://analytics.google.com' },
-      { icon:'🚀', label:'Rocket', link:'https://www.spacex.com' },
+    const grid = document.createElement('div');
+    grid.id = "pinned-grid";
+    const items = [
+      { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
+      { icon: '🔗', label: 'Website', link: 'https://www.example.com' },
+      { icon: '📊', label: 'Analytics', link: 'https://analytics.google.com' },
+      { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' },
     ];
-    pinnedItems.forEach(it=>{
-      const d=document.createElement('div');
-      d.classList.add('pinned-btn');
-      d.addEventListener('click',()=>window.open(it.link,'_blank'));
-      const iconSpan=document.createElement('span');
+    items.forEach(item => {
+      const btn = document.createElement('div');
+      btn.classList.add('pinned-btn');
+      btn.addEventListener('click', () => window.open(item.link, '_blank'));
+      const iconSpan = document.createElement('span');
       iconSpan.classList.add('pinned-btn-icon');
-      iconSpan.textContent=it.icon;
-      d.appendChild(iconSpan);
-      const lblSpan=document.createElement('span');
-      lblSpan.textContent=it.label;
-      d.appendChild(lblSpan);
-      pinnedGrid.appendChild(d);
+      iconSpan.textContent = item.icon;
+      btn.appendChild(iconSpan);
+      const lblSpan = document.createElement('span');
+      lblSpan.textContent = item.label;
+      btn.appendChild(lblSpan);
+      grid.appendChild(btn);
     });
-    return pinnedGrid;
+    return grid;
   }
 
   /***********************************************
-   * 9) populateProfileTab
+   * 8) Populate Profile Tab
    ***********************************************/
   function populateProfileTab(container) {
-    container.innerHTML="";
-    const tIdVal = currentTicketId ? "#"+currentTicketId : "N/A";
+    container.innerHTML = "";
+    const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
-    const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]')||{value:""}).value.trim();
+    const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
 
     container.appendChild(createMenuItem("Ticket ID", tIdVal));
     container.appendChild(createMenuItem("Account", accountVal));
     container.appendChild(createMenuItem("Account Profile", profileVal));
 
-    const carrRow=createMenuItem("CARR","Fetching...", false);
+    const carrRow = createMenuItem("CARR", "Fetching...", false);
     container.appendChild(carrRow);
 
     container.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-    const copyAccBtn=document.createElement('button');
-    copyAccBtn.textContent="Copy Account/Profile";
+    const copyAccBtn = document.createElement('button');
+    copyAccBtn.textContent = "Copy Account/Profile";
     copyAccBtn.classList.add('btn','btn-sm','btn-outline-secondary','mb-2','copy-btn');
-    copyAccBtn.addEventListener('click',()=>{
-      const txt = accountVal+"/"+profileVal;
-      navigator.clipboard.writeText(txt).then(()=>{
-        copyAccBtn.textContent="Copied!";
-        setTimeout(()=>{ copyAccBtn.textContent="Copy Account/Profile"; },2000);
+    copyAccBtn.addEventListener('click', () => {
+      const txt = accountVal + "/" + profileVal;
+      navigator.clipboard.writeText(txt).then(() => {
+        copyAccBtn.textContent = "Copied!";
+        setTimeout(() => { copyAccBtn.textContent = "Copy Account/Profile"; }, 2000);
       });
     });
     container.appendChild(copyAccBtn);
 
-    const hr=document.createElement('hr');
+    const hr = document.createElement('hr');
     hr.classList.add('my-2');
     container.appendChild(hr);
 
-    const rHead=document.createElement('div');
-    rHead.textContent="Recent Tickets (last 7 days)";
-    rHead.style.fontWeight='bold';
+    const rHead = document.createElement('div');
+    rHead.textContent = "Recent Tickets (last 7 days)";
+    rHead.style.fontWeight = 'bold';
     rHead.classList.add('mb-2');
     container.appendChild(rHead);
 
-    const recTix=getRecentTickets();
-    if (recTix.length>0) {
-      recTix.forEach(t=>{
-        const row=document.createElement('div');
-        row.classList.add('mb-2','pb-2','border-bottom');
-        const a=document.createElement('a');
-        a.href=t.href;
-        a.target="_blank";
-        a.textContent=t.subject;
-        a.style.color="#007bff";
-        a.style.textDecoration="none";
-        a.addEventListener('mouseover',()=>{ a.style.textDecoration="underline";});
-        a.addEventListener('mouseout',()=>{ a.style.textDecoration="none";});
-        row.appendChild(a);
-
-        const cpy=document.createElement('button');
-        cpy.classList.add('copy-btn');
-        cpy.innerHTML=copyIconSVG;
-        cpy.title="Copy Link";
-        cpy.addEventListener('click',()=>{
-          navigator.clipboard.writeText(t.href).then(()=>{
-            cpy.innerHTML=`<span style="color:green;">&#10003;</span>`;
-            setTimeout(()=>{ cpy.innerHTML=copyIconSVG;},2000);
+    const recTix = getRecentTickets();
+    if (recTix.length > 0) {
+      recTix.forEach(t => {
+        const tDiv = document.createElement('div');
+        tDiv.classList.add('mb-2','pb-2','border-bottom');
+        const a = document.createElement('a');
+        a.href = t.href;
+        a.target = "_blank";
+        a.textContent = t.subject;
+        a.style.color = "#007bff";
+        a.style.textDecoration = "none";
+        a.addEventListener('mouseover', () => { a.style.textDecoration = "underline"; });
+        a.addEventListener('mouseout', () => { a.style.textDecoration = "none"; });
+        tDiv.appendChild(a);
+        const cpBtn = document.createElement('button');
+        cpBtn.classList.add('copy-btn');
+        cpBtn.innerHTML = copyIconSVG;
+        cpBtn.title = "Copy Link";
+        cpBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(t.href).then(() => {
+            cpBtn.innerHTML = `<span style="color:green;">&#10003;</span>`;
+            setTimeout(() => { cpBtn.innerHTML = copyIconSVG; }, 2000);
           });
         });
-        row.appendChild(cpy);
-
-        container.appendChild(row);
+        tDiv.appendChild(cpBtn);
+        container.appendChild(tDiv);
       });
     } else {
-      const noDiv=document.createElement('div');
-      noDiv.textContent="No tickets in the last 7 days";
+      const noDiv = document.createElement('div');
+      noDiv.textContent = "No tickets in the last 7 days";
       container.appendChild(noDiv);
     }
 
-    // fetch CARR
-    fetchCARR(val=>{
-      const vEl=carrRow.querySelector('.bg-light');
-      if (vEl) vEl.textContent=val;
+    fetchCARR(cVal => {
+      const vEl = carrRow.querySelector('.bg-light');
+      if (vEl) vEl.textContent = cVal;
     });
   }
 
   /***********************************************
-   * 10) Build entire tool layout
+   * 9) Build Entire Tool Layout
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.38.0)...");
+    console.log("[MultiTool Beast] Initializing (v1.38.6)...");
     initTheme();
-    const isOpen=false;
+    const isOpen = false;
 
-    // open button
-    const openBtn=document.createElement('button');
-    openBtn.innerHTML=`<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
-    openBtn.style.position='fixed';
-    openBtn.style.bottom='0px';
-    openBtn.style.right='0px';
-    openBtn.style.zIndex='9999';
-    openBtn.style.backgroundColor='#007bff';
-    openBtn.style.color='#fff';
-    openBtn.style.border='1px solid #0056b3';
-    openBtn.style.borderRadius='4px';
-    openBtn.style.padding='6px 10px';
-    openBtn.title='Open MultiTool Beast';
-    openBtn.style.display=isOpen? 'none':'block';
-    openBtn.addEventListener('click',()=>{
+    // Open button (bottom-right)
+    const openBtn = document.createElement('button');
+    openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
+    openBtn.style.position = 'fixed';
+    openBtn.style.bottom = '0px';
+    openBtn.style.right = '0px';
+    openBtn.style.zIndex = '9999';
+    openBtn.style.backgroundColor = '#007bff';
+    openBtn.style.color = '#fff';
+    openBtn.style.border = '1px solid #0056b3';
+    openBtn.style.borderRadius = '4px';
+    openBtn.style.padding = '6px 10px';
+    openBtn.title = 'Open MultiTool Beast';
+    openBtn.style.display = isOpen ? 'none' : 'block';
+    openBtn.addEventListener('click', () => {
       console.log("[MultiTool Beast] Open button clicked");
-      wrapper.style.display='block';
-      openBtn.style.display='none';
-      localStorage.setItem("multitool_open","true");
+      wrapper.style.display = 'block';
+      openBtn.style.display = 'none';
+      localStorage.setItem("multitool_open", "true");
       showTab('profile');
-      // fill the profile tab
       if (profileFieldsContainer) {
         populateProfileTab(profileFieldsContainer);
       }
     });
     document.body.appendChild(openBtn);
 
-    // wrapper
-    const wrapper=document.createElement('div');
-    wrapper.id="multitool-beast-wrapper";
-    const storedPos=localStorage.getItem("multitool_position");
+    // Outer wrapper
+    const wrapper = document.createElement('div');
+    wrapper.id = "multitool-beast-wrapper";
+    const storedPos = localStorage.getItem("multitool_position");
     if (storedPos) {
       try {
-        const pos=JSON.parse(storedPos);
-        if (pos.top) wrapper.style.top=pos.top;
-        if (pos.left) wrapper.style.left=pos.left;
+        const pos = JSON.parse(storedPos);
+        if (pos.top) wrapper.style.top = pos.top;
+        if (pos.left) wrapper.style.left = pos.left;
       } catch(e){}
     } else {
-      wrapper.style.bottom='80px';
-      wrapper.style.right='20px';
+      wrapper.style.bottom = '80px';
+      wrapper.style.right = '20px';
     }
-    wrapper.style.position='fixed';
-    wrapper.style.zIndex='9999';
-    wrapper.style.width='360px';
-    wrapper.style.minWidth='280px';
-    wrapper.style.minHeight='200px';
-    wrapper.style.resize='both';
-    wrapper.style.overflow='auto';
-    wrapper.style.display=isOpen?'block':'none';
-    localStorage.setItem("multitool_open", isOpen?"true":"false");
+    wrapper.style.position = 'fixed';
+    wrapper.style.zIndex = '9999';
+    wrapper.style.width = '360px';
+    wrapper.style.minWidth = '280px';
+    wrapper.style.minHeight = '200px';
+    wrapper.style.resize = 'both';
+    wrapper.style.overflow = 'auto';
+    wrapper.style.display = isOpen ? 'block' : 'none';
+    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // top bar
-    const topBar=document.createElement('div');
-    topBar.id="multitool-topbar";
-    const topLeft=document.createElement('div');
-    const nightLabel=document.createElement('label');
-    nightLabel.className='switch';
-    const nightInput=document.createElement('input');
-    nightInput.type='checkbox';
-    nightInput.id='slider-top';
-    const nightSpan=document.createElement('span');
-    nightSpan.className='slider round';
+    // Top Bar
+    const topBar = document.createElement('div');
+    topBar.id = "multitool-topbar";
+    const topLeft = document.createElement('div');
+    const nightLabel = document.createElement('label');
+    nightLabel.className = 'switch';
+    const nightInput = document.createElement('input');
+    nightInput.type = 'checkbox';
+    nightInput.id = 'slider-top';
+    const nightSpan = document.createElement('span');
+    nightSpan.className = 'slider round';
     nightLabel.appendChild(nightInput);
     nightLabel.appendChild(nightSpan);
     topLeft.appendChild(nightLabel);
-    nightInput.addEventListener('change',toggleTheme);
+    nightInput.addEventListener('change', toggleTheme);
     topBar.appendChild(topLeft);
-    const topRight=document.createElement('div');
-    topRight.className='topbar-buttons';
-
-    const upBtn=document.createElement('button');
-    upBtn.textContent="↑";
-    upBtn.title="Scroll to top";
+    const topRight = document.createElement('div');
+    topRight.className = 'topbar-buttons';
+    const upBtn = document.createElement('button');
+    upBtn.textContent = "↑";
+    upBtn.title = "Scroll to top";
     upBtn.classList.add('btn','btn-sm','btn-outline-secondary');
-    upBtn.addEventListener('click',()=>{ window.scrollTo({top:0,behavior:'smooth'});});
+    upBtn.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     topRight.appendChild(upBtn);
-
-    const downBtn=document.createElement('button');
-    downBtn.textContent="↓";
-    downBtn.title="Scroll to bottom";
+    const downBtn = document.createElement('button');
+    downBtn.textContent = "↓";
+    downBtn.title = "Scroll to bottom";
     downBtn.classList.add('btn','btn-sm','btn-outline-secondary');
-    downBtn.addEventListener('click',()=>{ window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});});
+    downBtn.addEventListener('click', () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
     topRight.appendChild(downBtn);
-
-    const closeBtn=document.createElement('button');
-    closeBtn.textContent='×';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
     closeBtn.classList.add('btn','btn-sm','btn-outline-danger');
-    closeBtn.title='Close MultiTool Beast';
-    closeBtn.addEventListener('click',()=>{
-      wrapper.style.display='none';
-      openBtn.style.display='block';
-      localStorage.setItem("multitool_open","false");
+    closeBtn.title = 'Close MultiTool Beast';
+    closeBtn.addEventListener('click', () => {
+      wrapper.style.display = 'none';
+      openBtn.style.display = 'block';
+      localStorage.setItem("multitool_open", "false");
     });
     topRight.appendChild(closeBtn);
-
     topBar.appendChild(topRight);
     wrapper.appendChild(topBar);
 
-    // header
-    const header=document.createElement('div');
-    header.classList.add('card-header','d-flex','align-items-center','justify-content-center','py-2','px-3');
-    const headerIcon=document.createElement('img');
-    headerIcon.src='https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png';
-    headerIcon.style.width='20px';
-    headerIcon.style.height='20px';
-    headerIcon.style.marginRight='8px';
-    const headerTxt=document.createElement('span');
-    headerTxt.textContent='MultiTool Beast';
-    headerTxt.style.fontWeight='bold';
-    header.appendChild(headerIcon);
-    header.appendChild(headerTxt);
-    wrapper.appendChild(header);
+    // Header
+    const headerArea = document.createElement('div');
+    headerArea.classList.add('card-header','d-flex','align-items-center','justify-content-center','py-2','px-3');
+    const headerIcon = document.createElement('img');
+    headerIcon.src = 'https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png';
+    headerIcon.style.width = '20px';
+    headerIcon.style.height = '20px';
+    headerIcon.style.marginRight = '8px';
+    const headerTxt = document.createElement('span');
+    headerTxt.textContent = 'MultiTool Beast';
+    headerTxt.style.fontWeight = 'bold';
+    headerArea.appendChild(headerIcon);
+    headerArea.appendChild(headerTxt);
+    wrapper.appendChild(headerArea);
 
-    // tabs nav
-    const tabsNav=document.createElement('div');
+    // Tabs Navigation
+    const tabsNav = document.createElement('div');
     tabsNav.classList.add('multitool-tabs');
-    const tabBtnProfile=document.createElement('div');
+    const tabBtnProfile = document.createElement('div');
     tabBtnProfile.classList.add('multitool-tab');
-    tabBtnProfile.id='tab-btn-profile';
-    tabBtnProfile.innerHTML=`<span class="multitool-tab-icon">${personIconSVG}</span> Profile`;
-    tabBtnProfile.addEventListener('click',()=>showTab('profile'));
-    const tabBtnPinned=document.createElement('div');
+    tabBtnProfile.id = 'tab-btn-profile';
+    tabBtnProfile.innerHTML = `<span class="multitool-tab-icon">${personIconSVG}</span> Profile`;
+    tabBtnProfile.addEventListener('click', () => { showTab('profile'); });
+    const tabBtnPinned = document.createElement('div');
     tabBtnPinned.classList.add('multitool-tab');
-    tabBtnPinned.id='tab-btn-pinned';
-    tabBtnPinned.innerHTML=`<span class="multitool-tab-icon">${pinIconSVG}</span> Pinned`;
-    tabBtnPinned.addEventListener('click',()=>showTab('pinned'));
+    tabBtnPinned.id = 'tab-btn-pinned';
+    tabBtnPinned.innerHTML = `<span class="multitool-tab-icon">${pinIconSVG}</span> Pinned`;
+    tabBtnPinned.addEventListener('click', () => { showTab('pinned'); });
     tabsNav.appendChild(tabBtnProfile);
     tabsNav.appendChild(tabBtnPinned);
     wrapper.appendChild(tabsNav);
 
-    // tab contents
-    const tabProfile=document.createElement('div');
+    // Tab Contents
+    // Profile Tab
+    const tabProfile = document.createElement('div');
     tabProfile.classList.add('multitool-tab-content');
-    tabProfile.id='tab-content-profile';
-    const profileBody=document.createElement('div');
-    profileBody.classList.add('p-3');
+    tabProfile.id = 'tab-content-profile';
+    const cardBodyProfile = document.createElement('div');
+    cardBodyProfile.classList.add('p-3');
 
-    // row: Copy Selected + Slack/JIRA
-    const topBodyRow=document.createElement('div');
-    topBodyRow.style.display='flex';
-    topBodyRow.style.alignItems='center';
-    topBodyRow.style.marginBottom='8px';
-
-    const copyAllBtn=document.createElement('button');
-    copyAllBtn.id='copy-all-selected-btn';
-    copyAllBtn.textContent="Copy Selected";
+    // Row: Copy Selected + Slack/JIRA toggle
+    const topBodyRowProfile = document.createElement('div');
+    topBodyRowProfile.style.display = 'flex';
+    topBodyRowProfile.style.alignItems = 'center';
+    topBodyRowProfile.style.marginBottom = '8px';
+    const copyAllBtn = document.createElement('button');
+    copyAllBtn.id = 'copy-all-selected-btn';
+    copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.classList.add('btn','btn-sm','btn-outline-secondary','mr-1','copy-btn');
-    copyAllBtn.addEventListener('click',copyAllSelected);
-    topBodyRow.appendChild(copyAllBtn);
-
-    const formatGroup=document.createElement('div');
-    formatGroup.id='format-toggle-group';
-    const slackBtn=document.createElement('button');
-    slackBtn.id='format-slack-btn';
-    slackBtn.textContent="Slack";
-    slackBtn.type="button";
+    copyAllBtn.addEventListener('click', copyAllSelected);
+    topBodyRowProfile.appendChild(copyAllBtn);
+    const formatGroup = document.createElement('div');
+    formatGroup.id = 'format-toggle-group';
+    const slackBtn = document.createElement('button');
+    slackBtn.id = 'format-slack-btn';
+    slackBtn.textContent = "Slack";
+    slackBtn.type = "button";
     slackBtn.classList.add('btn','btn-sm','btn-outline-secondary','mr-1','active');
-    slackBtn.addEventListener('click',()=>setFormat('slack'));
-    const jiraBtn=document.createElement('button');
-    jiraBtn.id='format-jira-btn';
-    jiraBtn.textContent="JIRA";
-    jiraBtn.type="button";
+    slackBtn.addEventListener('click', () => setFormat('slack'));
+    const jiraBtn = document.createElement('button');
+    jiraBtn.id = 'format-jira-btn';
+    jiraBtn.textContent = "JIRA";
+    jiraBtn.type = "button";
     jiraBtn.classList.add('btn','btn-sm','btn-outline-secondary');
-    jiraBtn.addEventListener('click',()=>setFormat('jira'));
+    jiraBtn.addEventListener('click', () => setFormat('jira'));
     formatGroup.appendChild(slackBtn);
     formatGroup.appendChild(jiraBtn);
-    topBodyRow.appendChild(formatGroup);
+    topBodyRowProfile.appendChild(formatGroup);
+    cardBodyProfile.appendChild(topBodyRowProfile);
 
-    profileBody.appendChild(topBodyRow);
-
-    // "Include Summary"
-    const summaryRow=document.createElement('div');
+    // "Include Summary" row
+    const summaryRow = document.createElement('div');
     summaryRow.classList.add('mb-2');
-    const sumCheck=document.createElement('input');
-    sumCheck.type='checkbox';
-    sumCheck.id='include-summary';
+    const sumCheck = document.createElement('input');
+    sumCheck.type = 'checkbox';
+    sumCheck.id = 'include-summary';
     sumCheck.classList.add('mr-1');
-    const sumLbl=document.createElement('label');
-    sumLbl.textContent="Include Summary";
-    sumLbl.htmlFor='include-summary';
+    const sumLbl = document.createElement('label');
+    sumLbl.textContent = "Include Summary";
+    sumLbl.htmlFor = 'include-summary';
     summaryRow.appendChild(sumCheck);
     summaryRow.appendChild(sumLbl);
-    profileBody.appendChild(summaryRow);
+    cardBodyProfile.appendChild(summaryRow);
 
-    // dynamic container
-    const profileFieldsContainer=document.createElement('div');
-    profileFieldsContainer.id='profile-fields-container';
-    profileBody.appendChild(profileFieldsContainer);
-
-    // fill it
+    // Dynamic container for Profile fields
+    const profileFieldsContainer = document.createElement('div');
+    profileFieldsContainer.id = 'profile-fields-container';
+    cardBodyProfile.appendChild(profileFieldsContainer);
     populateProfileTab(profileFieldsContainer);
 
-    tabProfile.appendChild(profileBody);
+    tabProfile.appendChild(cardBodyProfile);
 
-    // pinned tab
-    const tabPinned=document.createElement('div');
+    // Pinned Tab
+    const tabPinned = document.createElement('div');
     tabPinned.classList.add('multitool-tab-content');
-    tabPinned.id='tab-content-pinned';
-    const pinnedBody=document.createElement('div');
+    tabPinned.id = 'tab-content-pinned';
+    const pinnedBody = document.createElement('div');
     pinnedBody.classList.add('p-3');
     pinnedBody.innerHTML = `<p>Quick Access Grid:</p>`;
     pinnedBody.appendChild(buildPinnedTabContent());
@@ -802,36 +776,35 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     document.body.appendChild(wrapper);
 
     // Draggable handle
-    const dragHandleBtn=document.createElement('button');
-    dragHandleBtn.innerHTML="✋";
+    const dragHandleBtn = document.createElement('button');
+    dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.classList.add('btn','btn-light');
-    dragHandleBtn.style.background="#b0b0b0";
-    dragHandleBtn.style.minWidth="10px";
-    dragHandleBtn.style.padding="4px 15px 5px";
-    dragHandleBtn.style.position="absolute";
-    dragHandleBtn.style.top="-25px";
-    dragHandleBtn.style.left="50%";
-    dragHandleBtn.style.transform="translateX(-50%)";
-    dragHandleBtn.style.cursor="move";
+    dragHandleBtn.style.background = "#b0b0b0";
+    dragHandleBtn.style.minWidth = "10px";
+    dragHandleBtn.style.padding = "4px 15px 5px";
+    dragHandleBtn.style.position = "absolute";
+    dragHandleBtn.style.top = "-25px";
+    dragHandleBtn.style.left = "50%";
+    dragHandleBtn.style.transform = "translateX(-50%)";
+    dragHandleBtn.style.cursor = "move";
     wrapper.appendChild(dragHandleBtn);
-
-    dragHandleBtn.onmousedown=function(e){
+    dragHandleBtn.onmousedown = function(e) {
       e.preventDefault();
-      let posX=e.clientX, posY=e.clientY;
-      document.onmouseup=closeDrag;
-      document.onmousemove=dragMove;
-      function dragMove(e2){
+      let posX = e.clientX, posY = e.clientY;
+      document.onmouseup = closeDrag;
+      document.onmousemove = dragMove;
+      function dragMove(e2) {
         e2.preventDefault();
-        let deltaX=posX - e2.clientX;
-        let deltaY=e2.clientY - posY;
-        posX=e2.clientX;
-        posY=e2.clientY;
-        wrapper.style.top=(wrapper.offsetTop + deltaY)+"px";
-        wrapper.style.left=(wrapper.offsetLeft - deltaX)+"px";
+        let deltaX = posX - e2.clientX;
+        let deltaY = e2.clientY - posY;
+        posX = e2.clientX;
+        posY = e2.clientY;
+        wrapper.style.top = (wrapper.offsetTop + deltaY) + "px";
+        wrapper.style.left = (wrapper.offsetLeft - deltaX) + "px";
       }
-      function closeDrag(){
-        document.onmouseup=null;
-        document.onmousemove=null;
+      function closeDrag() {
+        document.onmouseup = null;
+        document.onmousemove = null;
         localStorage.setItem("multitool_position", JSON.stringify({
           top: wrapper.style.top,
           left: wrapper.style.left
@@ -841,26 +814,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
     setFormat('slack');
     showTab('profile');
-    console.log("[MultiTool Beast] Loaded (v1.38.0).");
+    console.log("[MultiTool Beast] Loaded (v1.38.6).");
   }
 
   /***********************************************
-   * 11) MutationObserver for live field updates
-   ***********************************************/
-  const observer = new MutationObserver(() => {
-    const accField = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-    const profField = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-    if (accField || profField) {
-      const container = document.getElementById('profile-fields-container');
-      if (container) {
-        populateProfileTab(container);
-      }
-    }
-  });
-  observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['value'] });
-
-  /***********************************************
-   * 12) Auto-update on URL change
+   * 10) Auto-update on URL change
    ***********************************************/
   setInterval(() => {
     const newId = extractTicketId();
@@ -875,7 +833,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }, 3000);
 
   /***********************************************
-   * 13) Initialize the tool
+   * 11) Initialize on DOM ready
    ***********************************************/
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(initTool, 3000));
