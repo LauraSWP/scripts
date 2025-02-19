@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.70
+// @version      1.71
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -34,11 +34,10 @@
 </svg>`;
 
   /***********************************************
-   * 2) Main CSS: Layout, tabs, and night mode toggle
+   * 2) Main CSS: Layout, tabs, night mode toggle, etc.
    ***********************************************/
   const styleEl = document.createElement('style');
   styleEl.textContent = `
-/* Wrapper styling */
 #multitool-beast-wrapper {
   background: #ffffff;
   padding: 15px;
@@ -48,7 +47,7 @@
   font-family: sans-serif;
 }
 
-/* Top bar with night mode toggle on left, up/down and close on right */
+/* Top bar */
 #multitool-topbar {
   display: flex;
   justify-content: space-between;
@@ -97,7 +96,7 @@ button.copy-btn:hover {
   border-color: #007bff;
 }
 
-/* Night mode toggle switch with icons */
+/* Night mode toggle with icons */
 .switch {
   position: relative;
   display: inline-block;
@@ -171,7 +170,7 @@ input:checked + .slider:before {
   display: block;
 }
 
-/* Pinned tab quick access grid */
+/* Pinned grid */
 #pinned-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -201,7 +200,7 @@ input:checked + .slider:before {
   document.head.appendChild(styleEl);
 
   /***********************************************
-   * 3) Night Mode CSS (Dark overrides)
+   * 3) Night Mode CSS (for dark overrides)
    ***********************************************/
   const nightModeCSS = `
 body, html {
@@ -328,7 +327,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
    ***********************************************/
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
-    row.classList.add('mb-2','pb-2','border-bottom','fieldRow');
+    row.classList.add('mb-2', 'pb-2', 'border-bottom', 'fieldRow');
     const chk = document.createElement('input');
     chk.type = 'checkbox';
     chk.checked = true;
@@ -514,9 +513,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) return;
-    console.log("[MultiTool Beast] Initializing (v1.37.4)...");
+    console.log("[MultiTool Beast] Initializing (v1.37.5)...");
     initTheme();
     const isOpen = false;
+
+    // Open button (bottom-right)
     const openBtn = document.createElement('button');
     openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:20px;height:20px;">`;
     openBtn.style.position = 'fixed';
@@ -531,15 +532,16 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     openBtn.title = 'Open MultiTool Beast';
     openBtn.style.display = isOpen ? 'none' : 'block';
     openBtn.addEventListener('click', () => {
+      console.log("[MultiTool Beast] Open button clicked");
       wrapper.style.display = 'block';
       openBtn.style.display = 'none';
       showTab('profile');
       localStorage.setItem("multitool_open", "true");
-      // Populate the profile tab fields
       populateProfileTab(profileFieldsContainer);
     });
     document.body.appendChild(openBtn);
 
+    // Outer wrapper
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     const storedPos = localStorage.getItem("multitool_position");
@@ -744,18 +746,16 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
     setFormat('slack');
     showTab('profile');
-    console.log("[MultiTool Beast] Loaded (v1.37.4).");
+    console.log("[MultiTool Beast] Loaded (v1.37.5).");
   }
 
   /***********************************************
    * 9) MutationObserver for Live Field Updates
    ***********************************************/
-  // This observer watches for attribute changes (e.g. 'value') or subtree modifications
-  // on the entire document. If the account or profile fields change, we re-populate the profile tab.
   const observer = new MutationObserver((mutationsList) => {
-    const accountField = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
-    const profileField = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
-    if (accountField || profileField) {
+    const accField = document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]');
+    const profField = document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]');
+    if (accField || profField) {
       const container = document.getElementById('profile-fields-container');
       if (container) {
         populateProfileTab(container);
@@ -780,7 +780,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }, 3000);
 
   /***********************************************
-   * 11) Initialize the Tool
+   * 11) Initialize the Tool on DOM ready
    ***********************************************/
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(initTool, 3000));
