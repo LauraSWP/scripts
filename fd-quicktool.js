@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.73
+// @version      1.74
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -34,7 +34,7 @@
 </svg>`;
 
   /***********************************************
-   * 2) Main CSS: layout, tabs, night mode toggle, etc.
+   * 2) Main CSS: layout, tabs, night mode toggle
    ***********************************************/
   const styleEl = document.createElement('style');
   styleEl.textContent = `
@@ -96,7 +96,9 @@ button.copy-btn:hover {
   border-color: #007bff;
 }
 
-/* Night mode toggle with icons */
+/* Night mode toggle with icons:
+   By default: sun icon for day (unchecked).
+   When checked => moon icon for night. */
 .switch {
   position: relative;
   display: inline-block;
@@ -127,13 +129,13 @@ button.copy-btn:hover {
   left: -3px;
   bottom: -3px;
   transition: .4s;
-  background: white url('https://i.ibb.co/FxzBYR9/night.png') no-repeat center / cover;
+  background: white url('https://i.ibb.co/7JfqXxB/sunny.png') no-repeat center / cover;
   border-radius: 50%;
   box-shadow: 0 0px 15px #2020203d;
 }
 input:checked + .slider:before {
   transform: translateX(20px);
-  background: white url('https://i.ibb.co/7JfqXxB/sunny.png') no-repeat center / cover;
+  background: white url('https://i.ibb.co/FxzBYR9/night.png') no-repeat center / cover;
 }
 
 /* Tabs */
@@ -232,8 +234,14 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
-    if (stored === 'theme-dark') applyNightModeCSS();
-    else removeNightModeCSS();
+    if (stored === 'theme-dark') {
+      applyNightModeCSS();
+      // Also check the checkbox if user left it in dark mode
+      const sliderTop = document.getElementById('slider-top');
+      if (sliderTop) sliderTop.checked = true;
+    } else {
+      removeNightModeCSS();
+    }
   }
   function toggleTheme() {
     const st = localStorage.getItem('fdTheme');
@@ -247,16 +255,38 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   /***********************************************
-   * 4) Extract Ticket ID (handles /a/tickets/ too)
+   * 4) showTab function
+   ***********************************************/
+  function showTab(which) {
+    const allTabs = document.querySelectorAll('.multitool-tab');
+    const allContents = document.querySelectorAll('.multitool-tab-content');
+    allTabs.forEach(t => t.classList.remove('active'));
+    allContents.forEach(c => c.classList.remove('active'));
+    if (which === 'profile') {
+      const tab = document.getElementById('tab-btn-profile');
+      const content = document.getElementById('tab-content-profile');
+      if (tab) tab.classList.add('active');
+      if (content) content.classList.add('active');
+    } else {
+      const tab = document.getElementById('tab-btn-pinned');
+      const content = document.getElementById('tab-content-pinned');
+      if (tab) tab.classList.add('active');
+      if (content) content.classList.add('active');
+    }
+  }
+
+  /***********************************************
+   * 5) Extract Ticket ID (handles /a/tickets/ too)
    ***********************************************/
   function extractTicketId() {
+    // match both /tickets/123 and /a/tickets/123
     const match = window.location.pathname.match(/(?:\/a)?\/tickets\/(\d+)/);
     return match ? match[1] : null;
   }
   let currentTicketId = extractTicketId();
 
   /***********************************************
-   * 5) Helper Functions
+   * 6) Helper Functions
    ***********************************************/
   function getFieldValue(el) {
     if (!el) return "";
@@ -275,10 +305,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (!val || ["account", "profile"].includes(val.toLowerCase())) val = "N/A";
     return val;
   }
+
   function getSummary() {
     const note = document.querySelector('.ticket_note[data-note-id]');
     return note ? note.textContent.trim() : "";
   }
+
   function getRecentTickets() {
     const tickets = [];
     const els = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -294,9 +326,10 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           if (linkEl) {
             const href = linkEl.href;
             const subject = linkEl.textContent.trim();
+            // also match /a/tickets/...
             const m = href.match(/(?:\/a)?\/tickets\/(\d+)/);
             const foundId = m ? m[1] : "";
-            if (currentTicketId && parseInt(foundId,10)===parseInt(currentTicketId,10)) return;
+            if (currentTicketId && parseInt(foundId,10) === parseInt(currentTicketId,10)) return;
             tickets.push({ href, subject, date: dt });
           }
         }
@@ -304,6 +337,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     return tickets;
   }
+
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -350,7 +384,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   /***********************************************
-   * 6) Slack/JIRA Toggle
+   * 7) Slack/JIRA Toggle & "Copy Selected"
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -366,6 +400,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       jiraBtn.classList.add('active');
     }
   }
+
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(row => {
@@ -411,20 +446,23 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       }
     });
   }
-  
+
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.classList.add('mb-2','pb-2','border-bottom','fieldRow');
+
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = true;
     check.classList.add('field-selector');
     check.style.marginRight = "5px";
     row.appendChild(check);
+
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
     lbl.style.fontWeight = 'bold';
     row.appendChild(lbl);
+
     const finalVal = valueText || "N/A";
     if (labelText.toLowerCase() === "relevant urls" && finalVal.startsWith("http")) {
       const link = document.createElement('a');
@@ -456,7 +494,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   /***********************************************
-   * 7) Build Pinned Tab Content
+   * 8) Build Pinned Tab Content
    ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
@@ -475,16 +513,18 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       iconSpan.classList.add('pinned-btn-icon');
       iconSpan.textContent = item.icon;
       btn.appendChild(iconSpan);
-      const lblSpan = document.createElement('span');
-      lblSpan.textContent = item.label;
-      btn.appendChild(lblSpan);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = item.label;
+      btn.appendChild(labelSpan);
+
       grid.appendChild(btn);
     });
     return grid;
   }
 
   /***********************************************
-   * 8) Populate Profile Tab
+   * 9) populateProfileTab
    ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
@@ -529,6 +569,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       recTix.forEach(t => {
         const tDiv = document.createElement('div');
         tDiv.classList.add('mb-2','pb-2','border-bottom');
+
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
@@ -538,6 +579,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
         a.addEventListener('mouseover', () => { a.style.textDecoration = "underline"; });
         a.addEventListener('mouseout', () => { a.style.textDecoration = "none"; });
         tDiv.appendChild(a);
+
         const cpBtn = document.createElement('button');
         cpBtn.classList.add('copy-btn');
         cpBtn.innerHTML = copyIconSVG;
@@ -549,6 +591,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
           });
         });
         tDiv.appendChild(cpBtn);
+
         container.appendChild(tDiv);
       });
     } else {
@@ -557,6 +600,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       container.appendChild(noDiv);
     }
 
+    // fetch CARR
     fetchCARR(cVal => {
       const vEl = carrRow.querySelector('.bg-light');
       if (vEl) vEl.textContent = cVal;
@@ -564,14 +608,14 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   /***********************************************
-   * 9) Build Entire Tool Layout
+   * 10) Build Entire Tool Layout
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.38.6)...");
+    console.log("[MultiTool Beast] Initializing (v1.39.0)...");
     initTheme();
     const isOpen = false;
 
@@ -641,20 +685,28 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     topLeft.appendChild(nightLabel);
     nightInput.addEventListener('change', toggleTheme);
     topBar.appendChild(topLeft);
+
     const topRight = document.createElement('div');
     topRight.className = 'topbar-buttons';
+
     const upBtn = document.createElement('button');
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
     upBtn.classList.add('btn','btn-sm','btn-outline-secondary');
-    upBtn.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    upBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
     topRight.appendChild(upBtn);
+
     const downBtn = document.createElement('button');
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
     downBtn.classList.add('btn','btn-sm','btn-outline-secondary');
-    downBtn.addEventListener('click', () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
+    downBtn.addEventListener('click', () => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    });
     topRight.appendChild(downBtn);
+
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
     closeBtn.classList.add('btn','btn-sm','btn-outline-danger');
@@ -665,6 +717,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       localStorage.setItem("multitool_open", "false");
     });
     topRight.appendChild(closeBtn);
+
     topBar.appendChild(topRight);
     wrapper.appendChild(topBar);
 
@@ -686,56 +739,69 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     // Tabs Navigation
     const tabsNav = document.createElement('div');
     tabsNav.classList.add('multitool-tabs');
+
     const tabBtnProfile = document.createElement('div');
     tabBtnProfile.classList.add('multitool-tab');
     tabBtnProfile.id = 'tab-btn-profile';
     tabBtnProfile.innerHTML = `<span class="multitool-tab-icon">${personIconSVG}</span> Profile`;
-    tabBtnProfile.addEventListener('click', () => { showTab('profile'); });
+    tabBtnProfile.addEventListener('click', () => {
+      showTab('profile');
+    });
+
     const tabBtnPinned = document.createElement('div');
     tabBtnPinned.classList.add('multitool-tab');
     tabBtnPinned.id = 'tab-btn-pinned';
     tabBtnPinned.innerHTML = `<span class="multitool-tab-icon">${pinIconSVG}</span> Pinned`;
-    tabBtnPinned.addEventListener('click', () => { showTab('pinned'); });
+    tabBtnPinned.addEventListener('click', () => {
+      showTab('pinned');
+    });
+
     tabsNav.appendChild(tabBtnProfile);
     tabsNav.appendChild(tabBtnPinned);
     wrapper.appendChild(tabsNav);
 
-    // Tab Contents
     // Profile Tab
     const tabProfile = document.createElement('div');
     tabProfile.classList.add('multitool-tab-content');
     tabProfile.id = 'tab-content-profile';
+
     const cardBodyProfile = document.createElement('div');
     cardBodyProfile.classList.add('p-3');
 
-    // Row: Copy Selected + Slack/JIRA toggle
+    // row with "Copy Selected" + Slack/JIRA
     const topBodyRowProfile = document.createElement('div');
     topBodyRowProfile.style.display = 'flex';
     topBodyRowProfile.style.alignItems = 'center';
     topBodyRowProfile.style.marginBottom = '8px';
+
     const copyAllBtn = document.createElement('button');
     copyAllBtn.id = 'copy-all-selected-btn';
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.classList.add('btn','btn-sm','btn-outline-secondary','mr-1','copy-btn');
     copyAllBtn.addEventListener('click', copyAllSelected);
     topBodyRowProfile.appendChild(copyAllBtn);
+
     const formatGroup = document.createElement('div');
     formatGroup.id = 'format-toggle-group';
+
     const slackBtn = document.createElement('button');
     slackBtn.id = 'format-slack-btn';
     slackBtn.textContent = "Slack";
     slackBtn.type = "button";
     slackBtn.classList.add('btn','btn-sm','btn-outline-secondary','mr-1','active');
     slackBtn.addEventListener('click', () => setFormat('slack'));
+
     const jiraBtn = document.createElement('button');
     jiraBtn.id = 'format-jira-btn';
     jiraBtn.textContent = "JIRA";
     jiraBtn.type = "button";
     jiraBtn.classList.add('btn','btn-sm','btn-outline-secondary');
     jiraBtn.addEventListener('click', () => setFormat('jira'));
+
     formatGroup.appendChild(slackBtn);
     formatGroup.appendChild(jiraBtn);
     topBodyRowProfile.appendChild(formatGroup);
+
     cardBodyProfile.appendChild(topBodyRowProfile);
 
     // "Include Summary" row
@@ -752,10 +818,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     summaryRow.appendChild(sumLbl);
     cardBodyProfile.appendChild(summaryRow);
 
-    // Dynamic container for Profile fields
+    // container for fields
     const profileFieldsContainer = document.createElement('div');
     profileFieldsContainer.id = 'profile-fields-container';
     cardBodyProfile.appendChild(profileFieldsContainer);
+
+    // fill fields
     populateProfileTab(profileFieldsContainer);
 
     tabProfile.appendChild(cardBodyProfile);
@@ -764,15 +832,18 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     const tabPinned = document.createElement('div');
     tabPinned.classList.add('multitool-tab-content');
     tabPinned.id = 'tab-content-pinned';
+
     const pinnedBody = document.createElement('div');
     pinnedBody.classList.add('p-3');
     pinnedBody.innerHTML = `<p>Quick Access Grid:</p>`;
     pinnedBody.appendChild(buildPinnedTabContent());
     tabPinned.appendChild(pinnedBody);
 
+    // attach tabs
     wrapper.appendChild(tabProfile);
     wrapper.appendChild(tabPinned);
 
+    // add wrapper to body
     document.body.appendChild(wrapper);
 
     // Draggable handle
@@ -788,9 +859,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     dragHandleBtn.style.transform = "translateX(-50%)";
     dragHandleBtn.style.cursor = "move";
     wrapper.appendChild(dragHandleBtn);
+
     dragHandleBtn.onmousedown = function(e) {
       e.preventDefault();
-      let posX = e.clientX, posY = e.clientY;
+      let posX = e.clientX;
+      let posY = e.clientY;
       document.onmouseup = closeDrag;
       document.onmousemove = dragMove;
       function dragMove(e2) {
@@ -814,11 +887,11 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
     setFormat('slack');
     showTab('profile');
-    console.log("[MultiTool Beast] Loaded (v1.38.6).");
+    console.log("[MultiTool Beast] Loaded (v1.39.0).");
   }
 
   /***********************************************
-   * 10) Auto-update on URL change
+   * 11) Auto-update on URL change
    ***********************************************/
   setInterval(() => {
     const newId = extractTicketId();
@@ -833,7 +906,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }, 3000);
 
   /***********************************************
-   * 11) Initialize on DOM ready
+   * 12) Initialize on DOM ready
    ***********************************************/
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(initTool, 3000));
