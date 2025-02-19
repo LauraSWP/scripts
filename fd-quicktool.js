@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.65
+// @version      1.66
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -12,6 +12,12 @@
 
 (function() {
   'use strict';
+
+  // Inline SVG for copy icon (using Bootstrap Icons style)
+  const copyIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard" viewBox="0 0 16 16">
+  <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
+  <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z"/>
+</svg>`;
 
   // ========================================================
   // Consolidated Custom CSS
@@ -44,9 +50,16 @@
   cursor: pointer;
 }
 
-/* Copy icon buttons (only icon, transparent background) */
+/* Close button styling */
+button.btn.btn-sm.btn-outline-danger {
+  background: #8fa0ae;
+  min-width: 10px;
+  padding: 4px 15px 5px;
+}
+
+/* Copy button styling (icon only) */
 button.copy-btn {
-  background: transparent;
+  background: #b0b0b0;
   min-width: 10px;
   padding: 4px 8px;
   border: none;
@@ -71,12 +84,6 @@ button.copy-btn:hover {
   background-color: #007bff;
   color: #fff;
   border-color: #007bff;
-}
-
-/* Light grey background for all non-copy buttons */
-button:not(.copy-btn) {
-  background-color: #d3d3d3 !important;
-  border-color: #d3d3d3 !important;
 }
 
 /* Slider (night mode toggle) */
@@ -158,7 +165,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
   }
 
   // ========================================================
-  // initTheme and toggleTheme functions
+  // initTheme and toggleTheme
   // ========================================================
   function initTheme() {
     const storedTheme = localStorage.getItem('fdTheme');
@@ -331,9 +338,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     if (!dynamicContainer) return;
     dynamicContainer.innerHTML = "";
 
-    // Inline SVG copy icon defined earlier (copyIconSVG)
-    // Use the variable copyIconSVG from the outer scope
-
+    // Use an inline SVG copy icon for individual copy buttons
     function createMenuItem(labelText, valueText, withCopy = true, rowId = null) {
       const itemDiv = document.createElement('div');
       itemDiv.classList.add('mb-2', 'pb-2', 'border-bottom', 'fieldRow');
@@ -368,6 +373,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
 
       if (withCopy) {
         const copyBtn = document.createElement('button');
+        // Set the innerHTML to the copy icon
         copyBtn.innerHTML = copyIconSVG;
         copyBtn.classList.add('copy-btn');
         copyBtn.title = "Copy";
@@ -410,7 +416,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     });
     dynamicContainer.appendChild(copyAccProfBtn);
 
-    // Recent Tickets (excluding active ticket)
+    // Recent Tickets (filtering out current ticket using numerical comparison)
     function getRecentTickets() {
       const tickets = [];
       const ticketElements = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -488,7 +494,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
       dynamicContainer.appendChild(noTicketsDiv);
     }
 
-    // Fetch CARR
+    // Fetch CARR and update row
     fetchCARR(function(carrValue) {
       const carrRowEl = document.getElementById("carrRow");
       if (carrRowEl) {
@@ -558,11 +564,12 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     wrapper.style.display = isOpen ? 'block' : 'none';
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
-    // Build new layout:
+    // Append our built layout into the wrapper.
     // 1. Top Bar: Night mode toggle (left) and Up/Down arrows + Close button (right)
     const topBar = document.createElement('div');
     topBar.id = "multitool-topbar";
     const topLeft = document.createElement('div');
+    // Night mode toggle in top bar (reuse our toggle)
     const themeToggleLabelTop = document.createElement('label');
     themeToggleLabelTop.className = 'switch';
     const themeToggleInputTop = document.createElement('input');
@@ -639,7 +646,7 @@ input, textarea, select, button { background-color: #1e1e1e !important; color: #
     copyAllBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary', 'mr-1', 'copy-btn');
     topBodyRow.appendChild(copyAllBtn);
 
-    let formatMode = 'slack';
+    let formatMode = 'slack'; // default to Slack
     const formatGroup = document.createElement('div');
     formatGroup.id = 'format-toggle-group';
     const slackBtn = document.createElement('button');
