@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.94
+// @version      1.95
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,7 +14,7 @@
   'use strict';
 
   /***********************************************
-   * Check if this is a ticket page
+   * 0) Check if this is a ticket page
    ***********************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
@@ -25,7 +25,7 @@
   }
 
   /***********************************************
-   * Utility Functions
+   * 1) Utility Functions
    ***********************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/\/a\/tickets\/(\d+)/);
@@ -122,7 +122,7 @@
   }
 
   /***********************************************
-   * Dark Mode Functions
+   * 2) Dark Mode Functions
    ***********************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
@@ -143,7 +143,47 @@
   }
 
   /***********************************************
-   * Format & Copy Functions (Slack/JIRA)
+   * 3) Tab Switching Function: showTab
+   ***********************************************/
+  function showTab(which) {
+    const profileTab = document.getElementById('tab-content-profile');
+    const pinnedTab = document.getElementById('tab-content-pinned');
+    const profileNav = document.getElementById('tab-btn-profile');
+    const pinnedNav = document.getElementById('tab-btn-pinned');
+    if (profileTab && pinnedTab && profileNav && pinnedNav) {
+      profileTab.style.display = "none";
+      pinnedTab.style.display = "none";
+      profileNav.classList.remove('active');
+      pinnedNav.classList.remove('active');
+      if (which === 'profile') {
+        profileTab.style.display = "block";
+        profileNav.classList.add('active');
+      } else {
+        pinnedTab.style.display = "block";
+        pinnedNav.classList.add('active');
+      }
+    } else {
+      console.error("Tab elements missing");
+    }
+  }
+
+  /***********************************************
+   * 4) Inline SVG Icons
+   ***********************************************/
+  const personIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+  <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
+</svg>`;
+  const pinIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
+</svg>`;
+  const copyIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
+  <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
+</svg>`;
+
+  /***********************************************
+   * 5) Format & Copy Functions (Slack/JIRA)
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -159,7 +199,6 @@
       jiraBtn.classList.add('active');
     }
   }
-
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(function(row) {
@@ -241,25 +280,7 @@
   }
 
   /***********************************************
-   * Inline SVG Icons
-   ***********************************************/
-  const personIconSVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-  <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
-</svg>`;
-  const pinIconSVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-  <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
-</svg>`;
-  const copyIconSVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-  <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
-  <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
-</svg>`;
-
-  /***********************************************
-   * Build Pinned Tab Content (Quick Access Grid)
+   * 6) Build Pinned Tab Content (Quick Access Grid)
    ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
@@ -288,7 +309,7 @@
   }
 
   /***********************************************
-   * Populate Profile Tab (Ticket/Field Info)
+   * 7) Populate Profile Tab (Ticket/Field Info)
    ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
@@ -367,7 +388,7 @@
   }
 
   /***********************************************
-   * Build Entire Tool Layout Using Freshdesk Native CSS
+   * 8) Build Entire Tool Layout Using Freshdesk Native CSS
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
@@ -415,7 +436,6 @@
     const headerRight = document.createElement('span');
     headerRight.style.position = "absolute";
     headerRight.style.right = "10px";
-    // Up button
     const upBtn = document.createElement('button');
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
@@ -423,7 +443,6 @@
     upBtn.style.marginRight = "5px";
     upBtn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     headerRight.appendChild(upBtn);
-    // Down button
     const downBtn = document.createElement('button');
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
@@ -431,7 +450,6 @@
     downBtn.style.marginRight = "5px";
     downBtn.addEventListener('click', function() { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
     headerRight.appendChild(downBtn);
-    // Close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "×";
     closeBtn.title = "Close MultiTool Beast";
@@ -493,14 +511,14 @@
     const profileContentDiv = document.createElement('div');
     profileContentDiv.className = "p-2";
     // Top row: Copy Selected and Slack/JIRA toggle
-    const topRow = document.createElement('div');
-    topRow.className = "d-flex justify-content-between mb-2";
+    const topRowDiv = document.createElement('div');
+    topRowDiv.className = "d-flex justify-content-between mb-2";
     const copyAllBtn = document.createElement('button');
     copyAllBtn.id = "copy-all-selected-btn";
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.className = "btn btn-xs btn-info";
     copyAllBtn.addEventListener('click', copyAllSelected);
-    topRow.appendChild(copyAllBtn);
+    topRowDiv.appendChild(copyAllBtn);
     const formatGroup = document.createElement('div');
     formatGroup.className = "btn-group";
     const slackBtn = document.createElement('button');
@@ -517,8 +535,8 @@
     jiraBtn.addEventListener('click', function() { setFormat('jira'); });
     formatGroup.appendChild(slackBtn);
     formatGroup.appendChild(jiraBtn);
-    topRow.appendChild(formatGroup);
-    profileContentDiv.appendChild(topRow);
+    topRowDiv.appendChild(formatGroup);
+    profileContentDiv.appendChild(topRowDiv);
     // Summary checkbox
     const summaryDiv = document.createElement('div');
     summaryDiv.className = "form-check mb-2";
@@ -553,7 +571,7 @@
     tabContentPinned.appendChild(pinnedContentDiv);
     wrapper.appendChild(tabContentPinned);
       
-    // Draggable handle (a small button above the header)
+    // Draggable handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.className = "btn btn-xs btn-outline-secondary";
