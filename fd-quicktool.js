@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.81
+// @version      1.82
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -15,51 +15,40 @@
   'use strict';
 
   /***********************************************
-   * 0) Load Tailwind CSS v4.0.7 Inline via GM_xmlhttpRequest
+   * 0) Load Bulma CSS Inline via GM_xmlhttpRequest
    ***********************************************/
-  function loadTailwindCSS() {
-    const url = "https://cdn.jsdelivr.net/npm/tailwindcss@4.0.7/index.min.css";
-    if (typeof GM_xmlhttpRequest !== 'undefined') {
-      GM_xmlhttpRequest({
-        method: "GET",
-        url: url,
-        onload: function(response) {
-          if (response.status === 200) {
-            const style = document.createElement('style');
-            style.id = "tailwind-inline";
-            style.textContent = response.responseText;
-            document.head.appendChild(style);
-            console.log("[MultiTool Beast] Tailwind CSS v4.0.7 loaded inline.");
-          } else {
-            console.error("[MultiTool Beast] Failed to load Tailwind CSS, status:", response.status);
-          }
-        }
-      });
-    } else {
-      fetch(url)
-        .then(resp => resp.text())
-        .then(text => {
+  function loadBulmaCSS() {
+    const url = "https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css";
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: url,
+      onload: function(response) {
+        if (response.status === 200) {
           const style = document.createElement('style');
-          style.id = "tailwind-inline";
-          style.textContent = text;
+          style.id = "bulma-inline";
+          style.textContent = response.responseText;
           document.head.appendChild(style);
-          console.log("[MultiTool Beast] Tailwind CSS loaded via fetch inline.");
-        })
-        .catch(e => console.error("[MultiTool Beast] Failed to load Tailwind CSS via fetch:", e));
-    }
+          console.log("[MultiTool Beast] Bulma CSS loaded inline.");
+        } else {
+          console.error("[MultiTool Beast] Failed to load Bulma CSS, status:", response.status);
+        }
+      }
+    });
   }
-  loadTailwindCSS();
+  loadBulmaCSS();
 
   /***********************************************
-   * 1) Custom Dark Mode Overrides
+   * 1) Custom Dark Mode Overrides for Bulma
    ***********************************************/
   const darkModeOverrides = `
 html.dark body {
   background-color: #121212 !important;
   color: #e0e0e0 !important;
 }
-html.dark .bg-white {
+html.dark .box {
   background-color: #1e1e1e !important;
+  border-color: #333 !important;
+  color: #e0e0e0 !important;
 }
 html.dark .border-gray-300 {
   border-color: #444 !important;
@@ -67,11 +56,13 @@ html.dark .border-gray-300 {
 html.dark .bg-gray-100 {
   background-color: #2d2d2d !important;
 }
-html.dark .text-blue-600 {
+html.dark .has-text-link {
   color: #9ecfff !important;
 }
-html.dark .bg-blue-600 {
-  background-color: #2a4365 !important;
+html.dark .button {
+  background-color: #333 !important;
+  border-color: #444 !important;
+  color: #e0e0e0 !important;
 }
 `;
   function applyDarkModeCSS() {
@@ -96,12 +87,12 @@ html.dark .bg-blue-600 {
       el.classList.add('hidden');
     });
     document.querySelectorAll('.multitool-tab-item').forEach(el => {
-      el.classList.remove('border-b-2', 'border-blue-600');
+      el.classList.remove('border-bottom-2','border-blue-600');
     });
     if (which === 'profile') {
       const tab = document.getElementById('tab-btn-profile');
       const content = document.getElementById('tab-content-profile');
-      if (tab) tab.classList.add('border-b-2', 'border-blue-600');
+      if (tab) tab.classList.add('border-bottom-2','border-blue-600');
       if (content) {
         content.classList.remove('hidden');
         content.classList.add('block');
@@ -109,7 +100,7 @@ html.dark .bg-blue-600 {
     } else {
       const tab = document.getElementById('tab-btn-pinned');
       const content = document.getElementById('tab-content-pinned');
-      if (tab) tab.classList.add('border-b-2', 'border-blue-600');
+      if (tab) tab.classList.add('border-bottom-2','border-blue-600');
       if (content) {
         content.classList.remove('hidden');
         content.classList.add('block');
@@ -118,7 +109,7 @@ html.dark .bg-blue-600 {
   }
 
   /***********************************************
-   * 3) Inline SVG Icons
+   * 3) Inline SVG Icons (person, pin, copy)
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -136,7 +127,7 @@ html.dark .bg-blue-600 {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: (Using our custom switch)
+   * 4) Dark Mode Toggle: Appearance via our switch
    ***********************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
@@ -161,7 +152,7 @@ html.dark .bg-blue-600 {
   }
 
   /***********************************************
-   * 5) Extract Ticket ID
+   * 5) Extract Ticket ID (from URL)
    ***********************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/(?:\/a)?\/tickets\/(\d+)/);
@@ -362,7 +353,7 @@ html.dark .bg-blue-600 {
       btn.title = "Copy";
       btn.addEventListener('click', () => {
         navigator.clipboard.writeText(finalVal).then(() => {
-          btn.innerHTML = `<span class="text-green-500">&#10003;</span>`;
+          btn.innerHTML = `<span class="has-text-success">&#10003;</span>`;
           setTimeout(() => { btn.innerHTML = copyIconSVG; }, 2000);
         });
       });
@@ -377,7 +368,7 @@ html.dark .bg-blue-600 {
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
     grid.id = "pinned-grid";
-    grid.className = "grid grid-cols-2 gap-4";
+    grid.className = "columns is-multiline";
     const items = [
       { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
       { icon: '🔗', label: 'Website', link: 'https://www.example.com' },
@@ -385,17 +376,20 @@ html.dark .bg-blue-600 {
       { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' },
     ];
     items.forEach(item => {
+      const col = document.createElement('div');
+      col.className = "column is-half";
       const btn = document.createElement('div');
-      btn.className = "p-2 bg-gray-100 dark:bg-gray-700 rounded text-center cursor-pointer border border-gray-300 dark:border-gray-600";
+      btn.className = "box has-text-centered is-clickable";
       btn.addEventListener('click', () => window.open(item.link, '_blank'));
       const iconSpan = document.createElement('div');
-      iconSpan.className = "text-xl mb-1";
+      iconSpan.className = "is-size-4 mb-1";
       iconSpan.textContent = item.icon;
       btn.appendChild(iconSpan);
       const labelSpan = document.createElement('div');
       labelSpan.textContent = item.label;
       btn.appendChild(labelSpan);
-      grid.appendChild(btn);
+      col.appendChild(btn);
+      grid.appendChild(col);
     });
     return grid;
   }
@@ -435,19 +429,23 @@ html.dark .bg-blue-600 {
     
     const rHead = document.createElement('div');
     rHead.textContent = "Recent Tickets (last 7 days)";
-    rHead.className = "font-bold mb-2";
+    rHead.className = "has-text-weight-bold mb-2";
     container.appendChild(rHead);
     
     const recTix = getRecentTickets();
     if (recTix.length > 0) {
       recTix.forEach(t => {
         const tDiv = document.createElement('div');
-        tDiv.className = "mb-2 pb-2 border-b border-gray-300 dark:border-gray-600";
+        tDiv.className = "mb-2 pb-2 border-bottom";
+        tDiv.style.borderColor = "rgb(209 213 219)"; // Bulma's gray-300
+        if (document.documentElement.classList.contains("dark")) {
+          tDiv.style.borderColor = "#444";
+        }
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
         a.textContent = t.subject;
-        a.className = "text-blue-600 dark:text-blue-400 no-underline hover:underline";
+        a.className = "has-text-link";
         tDiv.appendChild(a);
         const cpBtn = document.createElement('button');
         cpBtn.className = "ml-2 button is-small is-light copy-btn";
@@ -455,7 +453,7 @@ html.dark .bg-blue-600 {
         cpBtn.title = "Copy Link";
         cpBtn.addEventListener('click', () => {
           navigator.clipboard.writeText(t.href).then(() => {
-            cpBtn.innerHTML = `<span class="text-green-500">&#10003;</span>`;
+            cpBtn.innerHTML = `<span class="has-text-success">&#10003;</span>`;
             setTimeout(() => { cpBtn.innerHTML = copyIconSVG; }, 2000);
           });
         });
@@ -475,21 +473,24 @@ html.dark .bg-blue-600 {
   }
 
   /***********************************************
-   * 9) Build Entire Tool Layout using Tailwind CSS
+   * 9) Build Entire Tool Layout using Bulma
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.44.1) with Tailwind CSS inline.");
+    console.log("[MultiTool Beast] Initializing (v1.44.2) with Bulma CSS inline.");
     initTheme();
     const isOpen = false;
     
     // Open button (fixed bottom-right)
     const openBtn = document.createElement('button');
-    openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="w-5 h-5">`;
-    openBtn.className = "button is-primary is-small fixed bottom-5 right-5 z-50";
+    openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="image is-32x32">`;
+    openBtn.className = "button is-primary is-small fixed" ;
+    openBtn.style.bottom = "20px";
+    openBtn.style.right = "20px";
+    openBtn.style.zIndex = "10000";
     openBtn.title = "Open MultiTool Beast";
     openBtn.style.display = isOpen ? "none" : "block";
     openBtn.addEventListener('click', () => {
@@ -527,7 +528,7 @@ html.dark .bg-blue-600 {
     topBar.id = "multitool-topbar";
     topBar.className = "flex justify-between items-center mb-2 px-2";
     const topLeft = document.createElement('div');
-    // Night mode toggle switch – our custom switch (we’ll style via inline CSS in our layout)
+    // Night mode toggle switch – our custom switch (we style it via inline CSS below)
     const nightLabel = document.createElement('label');
     nightLabel.className = "switch inline-block";
     const nightInput = document.createElement('input');
@@ -569,32 +570,34 @@ html.dark .bg-blue-600 {
     
     // Header
     const headerArea = document.createElement('div');
-    headerArea.className = "text-center mb-2";
+    headerArea.className = "has-text-centered mb-2";
     const headerIcon = document.createElement('img');
     headerIcon.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
-    headerIcon.className = "w-5 h-5 inline-block mr-2";
+    headerIcon.className = "image is-32x32 inline-block mr-2";
     const headerTxt = document.createElement('span');
     headerTxt.textContent = "MultiTool Beast";
-    headerTxt.className = "text-xl font-bold";
+    headerTxt.className = "title is-5 has-text-weight-bold";
     headerArea.appendChild(headerIcon);
     headerArea.appendChild(headerTxt);
     wrapper.appendChild(headerArea);
     
     // Tabs Navigation
     const tabsNav = document.createElement('div');
-    tabsNav.className = "flex border-b border-gray-300 dark:border-gray-600 mb-2";
-    const tabBtnProfile = document.createElement('div');
-    tabBtnProfile.id = "tab-btn-profile";
-    tabBtnProfile.className = "px-3 py-1 cursor-pointer multitool-tab-item";
-    tabBtnProfile.innerHTML = `<span class="inline-block mr-1">${personIconSVG}</span><span>Profile</span>`;
-    tabBtnProfile.addEventListener('click', () => showTab('profile'));
-    const tabBtnPinned = document.createElement('div');
-    tabBtnPinned.id = "tab-btn-pinned";
-    tabBtnPinned.className = "px-3 py-1 cursor-pointer multitool-tab-item";
-    tabBtnPinned.innerHTML = `<span class="inline-block mr-1">${pinIconSVG}</span><span>Pinned</span>`;
-    tabBtnPinned.addEventListener('click', () => showTab('pinned'));
-    tabsNav.appendChild(tabBtnProfile);
-    tabsNav.appendChild(tabBtnPinned);
+    tabsNav.className = "tabs is-boxed is-small mb-2";
+    const ul = document.createElement('ul');
+    const liProfile = document.createElement('li');
+    liProfile.id = "tab-btn-profile";
+    liProfile.className = "multitool-tab-item";
+    liProfile.innerHTML = `<a><span class="icon is-small">${personIconSVG}</span><span>Profile</span></a>`;
+    liProfile.addEventListener('click', () => showTab('profile'));
+    ul.appendChild(liProfile);
+    const liPinned = document.createElement('li');
+    liPinned.id = "tab-btn-pinned";
+    liPinned.className = "multitool-tab-item";
+    liPinned.innerHTML = `<a><span class="icon is-small">${pinIconSVG}</span><span>Pinned</span></a>`;
+    liPinned.addEventListener('click', () => showTab('pinned'));
+    ul.appendChild(liPinned);
+    tabsNav.appendChild(ul);
     wrapper.appendChild(tabsNav);
     
     // Profile Tab Content
@@ -613,7 +616,7 @@ html.dark .bg-blue-600 {
     topBodyRowProfile.appendChild(copyAllBtn);
     const formatGroup = document.createElement('div');
     formatGroup.id = "format-toggle-group";
-    formatGroup.className = "flex space-x-2";
+    formatGroup.className = "buttons are-small";
     const slackBtn = document.createElement('button');
     slackBtn.id = "format-slack-btn";
     slackBtn.textContent = "Slack";
@@ -649,13 +652,13 @@ html.dark .bg-blue-600 {
     tabProfile.appendChild(profileContent);
     wrapper.appendChild(tabProfile);
     
-    // Pinned Tab Content (Quick Access Grid) – appears in the "Pinned" tab only
+    // Pinned Tab Content (Quick Access Grid)
     const tabPinned = document.createElement('div');
     tabPinned.id = "tab-content-pinned";
     tabPinned.className = "multitool-tab-content hidden"; // initially hidden
     const pinnedContent = document.createElement('div');
     pinnedContent.className = "p-3";
-    pinnedContent.innerHTML = `<p class="font-bold mb-2 text-sm">Quick Access Grid:</p>`;
+    pinnedContent.innerHTML = `<p class="has-text-weight-bold mb-2 is-size-7">Quick Access Grid:</p>`;
     pinnedContent.appendChild(buildPinnedTabContent());
     tabPinned.appendChild(pinnedContent);
     wrapper.appendChild(tabPinned);
@@ -694,7 +697,7 @@ html.dark .bg-blue-600 {
     setFormat('slack');
     showTab('profile');
     initTheme();
-    console.log("[MultiTool Beast] Loaded (v1.44.1) with Tailwind CSS inline.");
+    console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma CSS inline.");
   }
 
   /***********************************************
@@ -711,7 +714,7 @@ html.dark .bg-blue-600 {
       }
     }
   }, 3000);
-  
+
   /***********************************************
    * 11) Initialize on DOM ready
    ***********************************************/
