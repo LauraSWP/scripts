@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      4.0
+// @version      4.1
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -17,34 +17,38 @@
   // Domain check: determine if we're on Freshdesk or Jira
   const isFreshdesk = window.location.hostname.includes("freshdesk.com");
   const isJira = window.location.hostname.includes("tealium.atlassian.net");
-
+  function waitForAccountInput() {
+    let acctInput = document.getElementById("customfield_10652-field");
+    if (acctInput) {
+      const latestValue = localStorage.getItem("latest_account_profile") || "";
+      acctInput.value = latestValue;
+      console.log("Prefilled Account/Profile with:", latestValue);
+    } else {
+      setTimeout(waitForAccountInput, 1000);
+    }
+  }
+  
+  waitForNextButton();
+}
   if (isJira) {
-    console.log("Jira page detected – running Jira-specific tasks only.");
-    // Wait for the Create Issue button to appear and attach a listener.
-    function waitForCreateBtn() {
-      let createBtn = document.getElementById("createGlobalItem");
-      if (createBtn) {
-        createBtn.addEventListener('click', function() {
-          // When the user clicks Create, wait a moment for the modal to open.
-          setTimeout(function() {
-            // Attempt to prefill the Account/Profile field
-            let acctField = document.getElementById("customfield_10652-field");
-            if (acctField) {
-              // Retrieve latest Account/Profile value stored from Freshdesk
-              let latestValue = localStorage.getItem("latest_account_profile") || "";
-              acctField.value = latestValue;
-              console.log("Prefilled Account/Profile with:", latestValue);
-            }
-          }, 2000);
-        });
-      } else {
-        setTimeout(waitForCreateBtn, 1000);
+    console.log("Jira page detected – running Jira-specific tasks.");
+  
+    // Check if we are on the classic create issue page
+    if (window.location.pathname.includes("CreateIssue!default.jspa")) {
+      
+      // Function to wait for the Next button, then click it
+      function waitForNextButton() {
+        let nextBtn = document.querySelector("input[type='submit'][value='Next']");
+        if (nextBtn) {
+          console.log("Next button found. Clicking it...");
+          nextBtn.click();
+          // After clicking, wait for the new form to load
+          waitForAccountInput();
+        } else {
+          setTimeout(waitForNextButton, 1000);
+        }
       }
     }
-    waitForCreateBtn();
-    return; // Exit – do not run the MultiTool UI on Jira pages.
-  }
-
   // ----- Freshdesk MultiTool Code Below -----
   if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
 
@@ -862,11 +866,12 @@ body.dark-mode-override {
     const ticketId = extractTicketId() || "";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
-    const summary = encodeURIComponent("Freshdesk Ticket " + ticketId);
-    const description = encodeURIComponent("Account: " + accountVal + "\nProfile: " + profileVal);
-    const customField = encodeURIComponent(accountVal + "/" + profileVal);
-    const jiraURL = jiraCreateURL + "?summary=" + summary + "&description=" + description + "&customfield_10652=" + customField;
-    window.open(jiraURL, '_blank');
+    
+    // Store latest Account/Profile for Jira page to pick up later
+    localStorage.setItem("latest_account_profile", accountVal + "/" + profileVal);
+    
+    // Open the classic Jira Create Issue page
+    window.open(jiraCreateURL, '_blank');
   }
 
   /***************************************************
