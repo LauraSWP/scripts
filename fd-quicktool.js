@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.86
+// @version      1.87
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -58,7 +58,30 @@ html.dark .button {
 `;
 
   /***********************************************
-   * 2) Utility: showTab (switch between "Profile" and "Pinned" tabs)
+   * 2) Host Element Styles (applied via :host in shadow DOM)
+   ***********************************************/
+  const hostStyles = `
+:host {
+  display: block;
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 10000;
+  width: 360px;
+  min-width: 200px;
+  min-height: 200px;
+  resize: both;
+  overflow: auto;
+  /* Bulma "box" look */
+  padding: 1.5rem;
+  background-color: white;
+  border: 1px solid #dbdbdb;
+  border-radius: 6px;
+}
+`;
+
+  /***********************************************
+   * 3) Utility: showTab (switch between "Profile" and "Pinned" tabs)
    ***********************************************/
   function showTab(which) {
     const shadow = window._multitoolShadow;
@@ -90,7 +113,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 3) Inline SVG Icons
+   * 4) Inline SVG Icons (person, pin, copy)
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -108,7 +131,7 @@ html.dark .button {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: via our custom switch
+   * 5) Dark Mode Toggle: via our custom switch
    ***********************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
@@ -129,7 +152,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 5) Extract Ticket ID (from URL)
+   * 6) Extract Ticket ID (from URL)
    ***********************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/(?:\/a)?\/tickets\/(\d+)/);
@@ -138,7 +161,7 @@ html.dark .button {
   let currentTicketId = extractTicketId();
 
   /***********************************************
-   * 6) Helper Functions: getFieldValue, getSummary, getRecentTickets, fetchCARR
+   * 7) Helper Functions: getFieldValue, getSummary, getRecentTickets, fetchCARR
    ***********************************************/
   function getFieldValue(el) {
     if (!el) return "";
@@ -232,7 +255,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 7) Slack/JIRA Toggle & "Copy Selected" Functionality
+   * 8) Slack/JIRA Toggle & "Copy Selected" Functionality
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -345,7 +368,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 7) Build Pinned Tab Content (Quick Access Grid)
+   * 9) Build Pinned Tab Content (Quick Access Grid)
    ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
@@ -376,7 +399,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 8) Populate Profile Tab (Ticket/Field Info)
+   * 10) Populate Profile Tab (Ticket/Field Info)
    ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
@@ -454,7 +477,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 9) Build Entire Tool Layout Using Bulma in Shadow DOM
+   * 11) Build Entire Tool Layout Using Bulma in Shadow DOM
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
@@ -462,39 +485,47 @@ html.dark .button {
       return;
     }
     loadBulmaCSS(function(bulmaCSS) {
-      console.log("[MultiTool Beast] Initializing (v1.44.2) with Bulma in Shadow DOM.");
+      console.log("[MultiTool Beast] Initializing (v1.44.5) with Bulma in Shadow DOM.");
       initTheme();
-      const isOpen = false; // Force initial state to closed for testing
+      const isOpen = false; // force initial state closed
       
-      // Create outer wrapper with fixed position (bottom:80px, right:20px)
+      // Create outer wrapper (host element)
       const wrapper = document.createElement('div');
       wrapper.id = "multitool-beast-wrapper";
-      wrapper.style.position = "fixed";
-      wrapper.style.bottom = "80px";
-      wrapper.style.right = "20px";
-      wrapper.style.zIndex = "10000";
-      wrapper.style.width = "360px";
-      wrapper.style.minWidth = "200px";
-      wrapper.style.minHeight = "200px";
-      wrapper.style.resize = "both";
-      wrapper.style.overflow = "auto";
-      wrapper.className = "box p-4 bg-white";
-      wrapper.style.display = isOpen ? "block" : "none";
-      localStorage.setItem("multitool_open", isOpen ? "true" : "false");
-      
+      // Host element styles will be applied via :host in the shadow DOM stylesheet
       // Attach shadow DOM to wrapper
       const shadow = wrapper.attachShadow({ mode: "open" });
-      window._multitoolShadow = shadow; // For external access
+      window._multitoolShadow = shadow;
       
-      // Inject Bulma CSS and dark overrides into shadow
+      // Inject Bulma CSS, dark mode overrides, and host styles into shadow
       const styleEl = document.createElement('style');
-      styleEl.textContent = bulmaCSS + "\n" + darkModeOverrides;
+      styleEl.textContent = bulmaCSS + "\n" + darkModeOverrides + "\n" + hostStyles;
+      // hostStyles defined below:
+      const hostStyles = `
+:host {
+  display: block;
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 10000;
+  width: 360px;
+  min-width: 200px;
+  min-height: 200px;
+  resize: both;
+  overflow: auto;
+  padding: 1.5rem;
+  background-color: white;
+  border: 1px solid #dbdbdb;
+  border-radius: 6px;
+}
+`;
+      styleEl.textContent = bulmaCSS + "\n" + darkModeOverrides + "\n" + hostStyles;
       shadow.appendChild(styleEl);
       
       // Create container for UI elements inside shadow DOM
       const container = document.createElement('div');
       
-      // Top Bar (with dark mode toggle and up/down/close buttons)
+      // Top Bar
       const topBar = document.createElement('div');
       topBar.id = "multitool-topbar";
       topBar.className = "level mb-2 px-2";
@@ -538,7 +569,7 @@ html.dark .button {
       topBar.appendChild(levelRight);
       container.appendChild(topBar);
       
-      // Header (icon and title)
+      // Header
       const headerArea = document.createElement('div');
       headerArea.className = "has-text-centered mb-2";
       const headerIcon = document.createElement('img');
@@ -638,8 +669,9 @@ html.dark .button {
       // Draggable handle (a small button above the header)
       const dragHandleBtn = document.createElement('button');
       dragHandleBtn.innerHTML = "✋";
-      dragHandleBtn.className = "button is-light is-small absolute";
-      dragHandleBtn.style.top = "-24px"; // slightly above header
+      dragHandleBtn.className = "button is-light is-small";
+      dragHandleBtn.style.position = "absolute";
+      dragHandleBtn.style.top = "-24px";
       dragHandleBtn.style.left = "50%";
       dragHandleBtn.style.transform = "translateX(-50%)";
       dragHandleBtn.style.cursor = "move";
@@ -671,7 +703,7 @@ html.dark .button {
       setFormat('slack');
       showTab('profile');
       initTheme();
-      console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma in Shadow DOM.");
+      console.log("[MultiTool Beast] Loaded (v1.44.5) with Bulma in Shadow DOM.");
       
       document.body.appendChild(wrapper);
       window._multitoolWrapper = wrapper;
@@ -679,7 +711,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 10) Auto-update on URL change (every 3 seconds)
+   * 12) Auto-update on URL change (every 3 seconds)
    ***********************************************/
   setInterval(() => {
     const newId = extractTicketId();
@@ -696,18 +728,8 @@ html.dark .button {
   }, 3000);
   
   /***********************************************
-   * 11) Initialize on DOM ready
+   * 13) Open Button (outside Shadow DOM)
    ***********************************************/
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(initTool, 3000));
-  } else {
-    setTimeout(initTool, 3000);
-  }
-  
-  /***********************************************
-   * 12) Open Button (outside Shadow DOM)
-   ***********************************************/
-  // Always force initial state to closed (for testing)
   const isOpenGlobal = false;
   const openBtn = document.createElement('button');
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="image is-32x32">`;
@@ -715,7 +737,6 @@ html.dark .button {
   openBtn.style.bottom = "20px";
   openBtn.style.right = "20px";
   openBtn.style.zIndex = "10000";
-  // Ensure visibility with explicit inline styles
   openBtn.style.backgroundColor = "#fff";
   openBtn.style.border = "2px solid #000";
   openBtn.style.padding = "5px";
@@ -738,5 +759,14 @@ html.dark .button {
     }
   });
   document.body.appendChild(openBtn);
+
+  /***********************************************
+   * 14) Initialize on DOM ready
+   ***********************************************/
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(initTool, 3000));
+  } else {
+    setTimeout(initTool, 3000);
+  }
   
 })();
