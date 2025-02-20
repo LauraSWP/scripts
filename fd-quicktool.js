@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.3
+// @version      2.4
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,11 +14,18 @@
   'use strict';
 
   /***************************************************
-   * 0) SVG Icons (Sun & Moon)
+   * 0) SVG Icons (Moon / Sun)
    ***************************************************/
+  const moonIconSVG = `
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+     xmlns="http://www.w3.org/2000/svg">
+  <path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9 9 0 1 0 20.354 15.354z"></path>
+</svg>`;
+
   const sunIconSVG = `
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
      xmlns="http://www.w3.org/2000/svg">
   <circle cx="12" cy="12" r="5"></circle>
   <path d="M12 1v2"></path>
@@ -31,23 +38,18 @@
   <path d="M18.36 5.64l1.42-1.42"></path>
 </svg>`;
 
-  const moonIconSVG = `
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
-     xmlns="http://www.w3.org/2000/svg">
-  <path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9 9 0 1 0 20.354 15.354z"></path>
-</svg>`;
-
-  // For reference:
+  // Other icons as needed
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
   <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
 </svg>`;
+
   const pinIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-  <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
+  <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
 </svg>`;
+
   const settingsIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
   <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
@@ -62,260 +64,303 @@
     const style = document.createElement('style');
     style.id = "multitool-beast-css";
     style.innerHTML = `
-    /* Pastel "Sway-like" Panel Styling */
-    :root {
-      /* Light mode colors */
-      --light-panel-bg: #fefcf9;  /* pastel off-white */
-      --light-panel-fg: #333;
-      --light-panel-border: #ccc;
-    
-      /* Dark mode colors */
-      --dark-panel-bg: #1e293b;
-      --dark-panel-fg: #e2e8f0;
-      --dark-panel-border: #475569;
-    }
-    
-    /* Let the body class handle which set of vars to use */
-    body:not(.dark-mode-override) {
-      --panel-bg: var(--light-panel-bg);
-      --panel-fg: var(--light-panel-fg);
-      --panel-border: var(--light-panel-border);
-    }
-    body.dark-mode-override {
-      --panel-bg: var(--dark-panel-bg);
-      --panel-fg: var(--dark-panel-fg);
-      --panel-border: var(--dark-panel-border);
-    }
-    
-    /* Main wrapper */
-    #multitool-beast-wrapper {
-      font-family: 'Segoe UI', Tahoma, sans-serif;
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      width: 360px;
-      min-width: 280px;
-      min-height: 200px;
-      background-color: var(--panel-bg);
-      color: var(--panel-fg);
-      border: 1px solid var(--panel-border);
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-      z-index: 999999;
-      display: none; /* toggled by script */
-      resize: both;
-      overflow: auto;
-    }
-    
-    /* Top bar (now has a "header-left" for logo/title and "header-right" for toggle/buttons) */
-    .mtb-top-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--panel-border);
-      background-color: var(--panel-bg);
-      gap: 12px;
-    }
-    .mtb-header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .mtb-header-left img {
-      width: 24px;
-      height: 24px;
-      object-fit: contain;
-    }
-    .mtb-header-title {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-    }
-    .mtb-header-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    /* Buttons in the top bar */
-    .mtb-btn {
-      background-color: transparent;
-      border: 1px solid var(--panel-border);
-      color: var(--panel-fg);
-      border-radius: 4px;
-      padding: 4px 8px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .mtb-btn:hover {
-      background-color: rgba(0,0,0,0.05);
-    }
-    .mtb-btn.mtb-btn-close {
-      border-color: #e11d48;
-      color: #e11d48;
-    }
-    .mtb-btn.mtb-btn-close:hover {
-      background-color: rgba(225,29,72,0.1);
-    }
-    
-    /* Theme toggle switch (moon & sun icons) */
-    .theme-toggle-wrapper {
-      position: relative;
-      width: 50px;
-      height: 24px;
-    }
-    .theme-toggle {
-      opacity: 0;
-      width: 0;
-      height: 0;
-      position: absolute;
-    }
-    .theme-toggle + label {
-      display: flex;
-      align-items: center;
-      position: relative;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(to right, #f1c40f 0%, #9b59b6 100%);
-      border-radius: 999px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    .theme-toggle + label:before {
-      content: "";
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      background-color: #fff;
-      border-radius: 50%;
-      transition: transform 0.3s;
-    }
-    .toggle-icon {
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      top: 4px;
-      color: #fff;
-    }
-    .toggle-icon--moon {
-      left: 5px;
-    }
-    .toggle-icon--sun {
-      right: 5px;
-    }
-    .theme-toggle:checked + label:before {
-      transform: translateX(26px);
-    }
-    
-    /* Header (tabs) */
-    .mtb-header-section {
-      border-bottom: 1px solid var(--panel-border);
-      background-color: var(--panel-bg);
-      padding: 8px;
-    }
-    .mtb-tabs {
-      list-style: none;
-      display: flex;
-      gap: 8px;
-      margin: 0;
-      padding: 0;
-    }
-    .mtb-tab {
-      padding: 6px 12px;
-      cursor: pointer;
-      border-radius: 4px 4px 0 0;
-      border: 1px solid var(--panel-border);
-      background-color: var(--panel-bg);
-      color: var(--panel-fg);
-    }
-    .mtb-tab.active {
-      border-bottom: 2px solid var(--panel-bg);
-      background-color: rgba(0,0,0,0.05);
-    }
-    
-    /* Content area */
-    .mtb-content {
-      padding: 8px;
-    }
-    
-    /* Section block styling */
-    .mtb-section {
-      background-color: rgba(0,0,0,0.02);
-      border: 1px solid var(--panel-border);
-      border-radius: 4px;
-      padding: 8px;
-      margin-bottom: 8px;
-    }
-    
-    /* Field rows */
-    .fieldRow {
-      display: flex;
-      align-items: center;
-      margin-bottom: 5px;
-      gap: 6px;
-    }
-    .fieldRow .fw-bold {
-      font-weight: 600;
-    }
-    .sway-btn {
-      background-color: #cbd5e1;
-      border: 1px solid #94a3b8;
-      color: #1e293b;
-      border-radius: 4px;
-      padding: 4px 8px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .sway-btn:hover {
-      background-color: #94a3b8;
-      color: #f9fafb;
-    }
-    
-    /* Draggable handle */
-    .sway-handle {
-      background: rgba(0,0,0,0.05);
-      border: 1px solid var(--panel-border);
-      cursor: move;
-      text-align: center;
-      padding: 4px;
-      margin: 8px 0 0;
-      border-radius: 4px;
-      font-size: 14px;
-      color: var(--panel-fg);
-    }
-    
-    /* The open button (floating) */
-    #sway-open-btn {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      z-index: 99999;
-      border-top-left-radius: 0;
-      border-top-right-radius: 0;
-      border-bottom-left-radius: 8px;
-      border-bottom-right-radius: 8px;
-      padding: 8px;
-      background-color: #374151;
-      border: 1px solid #4b5563;
-      box-shadow: 0 -2px 4px rgba(0,0,0,0.2);
-      cursor: pointer;
-    }
-    #sway-open-btn img {
-      width: 40px; 
-      height: 40px; 
-      object-fit: contain;
-    }
-    
+/* 
+  Pastel "Material-ish" Panel 
+  Slightly more playful & alive 
+*/
 
+/* Light / Dark mode color definitions */
+:root {
+  /* Light mode */
+  --light-panel-bg: #fffaf5;  /* pastel warm white */
+  --light-panel-fg: #2f2f2f;
+  --light-panel-border: #d1ccc9;
+
+  /* Dark mode */
+  --dark-panel-bg: #1e293b;
+  --dark-panel-fg: #e2e8f0;
+  --dark-panel-border: #475569;
+
+  /* Tabs (pastel) */
+  --tab-bg: #e8f1fa;
+  --tab-border: #b3d4f0; /* slightly darker tone of tab-bg */
+  --tab-fg: #14425c;    /* a darker text color that stands out on pastel */
+
+  --tab-active-bg: #d3eafc; 
+  --tab-active-border: #91c7f3;
+  --tab-active-fg: #0f2d3f;
+}
+
+/* Switch variable sets based on body class */
+body:not(.dark-mode-override) {
+  --panel-bg: var(--light-panel-bg);
+  --panel-fg: var(--light-panel-fg);
+  --panel-border: var(--light-panel-border);
+}
+body.dark-mode-override {
+  --panel-bg: var(--dark-panel-bg);
+  --panel-fg: var(--dark-panel-fg);
+  --panel-border: var(--dark-panel-border);
+}
+
+#multitool-beast-wrapper {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 380px;
+  min-width: 280px;
+  min-height: 220px;
+  background-color: var(--panel-bg);
+  color: var(--panel-fg);
+  border: 2px solid var(--panel-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  z-index: 999999;
+  display: none; /* toggled by script */
+  resize: both;
+  overflow: auto;
+  transition: box-shadow 0.2s;
+}
+
+/* Add bigger shadow while dragging */
+#multitool-beast-wrapper.dragging {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* Tiny tab drag handle at top center */
+.drag-handle {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 10px;
+  background-color: var(--panel-border);
+  border-radius: 6px 6px 0 0;
+  cursor: move;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* The top bar with round buttons on top-right */
+.mtb-top-bar {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 8px;
+}
+
+/* Round/cute circle buttons for up/down/close */
+.circle-btn {
+  width: 30px;
+  height: 30px;
+  background-color: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  color: #666;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+.circle-btn:hover {
+  background-color: #e9e9e9;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.circle-btn:active {
+  background-color: #dadada;
+}
+
+/* "Close" is a bit more alarming color */
+.close-btn {
+  background-color: #ffe5e5;
+  border: 1px solid #ffaaaa;
+  color: #cc0000;
+}
+.close-btn:hover {
+  background-color: #ffd6d6;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.close-btn:active {
+  background-color: #ffcccc;
+}
+
+/* Theme toggle switch */
+.theme-toggle-wrapper {
+  position: relative;
+  width: 44px;
+  height: 22px;
+}
+.theme-toggle {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.theme-toggle + label {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, #f1c40f 0%, #9b59b6 100%);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.theme-toggle + label:before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 20px;
+  height: 20px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+.toggle-icon {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  top: 4px;
+  color: #fff;
+}
+.toggle-icon--moon {
+  left: 4px;
+}
+.toggle-icon--sun {
+  right: 4px;
+}
+.theme-toggle:checked + label:before {
+  transform: translateX(22px);
+}
+
+/* The header (with tealium logo + title), below top bar */
+.mtb-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.mtb-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.mtb-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* The main content area (tabs + tab content) */
+.mtb-content {
+  padding: 8px 12px;
+}
+
+/* Tabs row */
+.mtb-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  margin-bottom: 8px;
+  padding: 0;
+  list-style: none;
+  justify-content: flex-start;
+}
+.mtb-tab {
+  padding: 6px 12px;
+  border-radius: 12px;
+  background-color: var(--tab-bg);
+  color: var(--tab-fg);
+  border: 1px solid var(--tab-border);
+  cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s;
+}
+.mtb-tab:hover {
+  background-color: #eef7ff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.mtb-tab.active {
+  background-color: var(--tab-active-bg);
+  border-color: var(--tab-active-border);
+  color: var(--tab-active-fg);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Hide tab content by default */
+.tab-content {
+  display: none;
+}
+
+/* Section block styling inside each tab content */
+.mtb-section {
+  background-color: rgba(0,0,0,0.02);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+/* Field rows */
+.fieldRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  gap: 6px;
+}
+.fieldRow .fw-bold {
+  font-weight: 600;
+}
+.sway-btn {
+  background-color: #dce4ed;
+  border: 1px solid #c0c8d0;
+  color: #333;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.15s;
+}
+.sway-btn:hover {
+  background-color: #bfc9d4;
+  color: #f9fafb;
+}
+
+/* The open button (floating) at bottom-right corner of page */
+#sway-open-btn {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  z-index: 99999;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  padding: 8px;
+  background-color: #374151;
+  border: 1px solid #4b5563;
+  box-shadow: 0 -2px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+#sway-open-btn img {
+  width: 40px; 
+  height: 40px; 
+  object-fit: contain;
+}
     `;
     document.head.appendChild(style);
   }
 
   /***************************************************
-   * 2) Basic Checks + Utility
+   * 2) Basic Checks & Utilities
    ***************************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
@@ -347,110 +392,14 @@
     applyTheme(storedTheme);
   }
   function toggleTheme(force) {
-    // if 'force' is "dark" or "light", else just toggle
     let current = loadPref("theme", "light");
-    let newTheme;
-    if (force) {
-      newTheme = force;
-    } else {
-      newTheme = (current === "dark") ? "light" : "dark";
-    }
+    let newTheme = force ? force : (current === "dark" ? "light" : "dark");
     savePref("theme", newTheme);
     applyTheme(newTheme);
   }
 
   /***************************************************
-   * 4) Building the UI
-   ***************************************************/
-  function buildTopBar() {
-    const bar = document.createElement('div');
-    bar.className = "mtb-top-bar";
-  
-    // Left: Logo + Title
-    const left = document.createElement('div');
-    left.className = "mtb-header-left";
-  
-    // Tealium logo
-    const tealiumLogo = document.createElement('img');
-    tealiumLogo.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=24,h=24,q=100/..."
-    // (replace above URL with your preferred Tealium logo)
-  
-    // Title
-    const title = document.createElement('h3');
-    title.className = "mtb-header-title";
-    title.textContent = "MultiTool Beast";
-  
-    left.appendChild(tealiumLogo);
-    left.appendChild(title);
-  
-    // Right: Theme toggle + up/down/close
-    const right = document.createElement('div');
-    right.className = "mtb-header-right";
-  
-    // Theme toggle wrapper
-    const toggleWrapper = document.createElement('div');
-    toggleWrapper.className = "theme-toggle-wrapper";
-    const toggleInput = document.createElement('input');
-    toggleInput.type = "checkbox";
-    toggleInput.id = "theme-toggle";
-    toggleInput.className = "theme-toggle";
-    toggleInput.checked = (loadPref("theme","light") === "dark");
-    toggleInput.addEventListener('change', () => {
-      toggleTheme(toggleInput.checked ? "dark" : "light");
-    });
-    const toggleLabel = document.createElement('label');
-    toggleLabel.htmlFor = "theme-toggle";
-    // Add the moon/sun icons inside
-    const moonSpan = document.createElement('span');
-    moonSpan.className = "toggle-icon toggle-icon--moon";
-    moonSpan.innerHTML = moonIconSVG;
-    const sunSpan = document.createElement('span');
-    sunSpan.className = "toggle-icon toggle-icon--sun";
-    sunSpan.innerHTML = sunIconSVG;
-    toggleLabel.appendChild(moonSpan);
-    toggleLabel.appendChild(sunSpan);
-    toggleWrapper.appendChild(toggleInput);
-    toggleWrapper.appendChild(toggleLabel);
-  
-    // Up, down, close buttons
-    const upBtn = document.createElement('button');
-    upBtn.className = "mtb-btn";
-    upBtn.textContent = "↑";
-    upBtn.title = "Scroll to top";
-    upBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-  
-    const downBtn = document.createElement('button');
-    downBtn.className = "mtb-btn";
-    downBtn.textContent = "↓";
-    downBtn.title = "Scroll to bottom";
-    downBtn.addEventListener('click', () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
-  
-    const closeBtn = document.createElement('button');
-    closeBtn.className = "mtb-btn mtb-btn-close";
-    closeBtn.textContent = "Close";
-    closeBtn.title = "Close MultiTool Beast";
-    closeBtn.addEventListener('click', () => {
-      document.getElementById("multitool-beast-wrapper").style.display = "none";
-      savePref("multitool_open", false);
-      const openBtn = document.getElementById('sway-open-btn');
-      if (openBtn) openBtn.style.display = "block";
-    });
-  
-    // Append everything
-    right.appendChild(toggleWrapper);
-    right.appendChild(upBtn);
-    right.appendChild(downBtn);
-    right.appendChild(closeBtn);
-  
-    // Final assembly
-    bar.appendChild(left);
-    bar.appendChild(right);
-    return bar;
-  }
-  
-
-  /***************************************************
-   * 5) Tabs
+   * 4) Tab Switching
    ***************************************************/
   function showTab(which) {
     ["profile","pinned","settings"].forEach(id => {
@@ -467,40 +416,8 @@
     });
   }
 
-  function buildHeaderTabs() {
-    const header = document.createElement('div');
-    header.className = "mtb-header-section";
-    const ul = document.createElement('ul');
-    ul.className = "mtb-tabs";
-
-    const profileTab = document.createElement('li');
-    profileTab.id = "tab-btn-profile";
-    profileTab.className = "mtb-tab active";
-    profileTab.innerHTML = `${personIconSVG} <span style="margin-left:4px;">Profile</span>`;
-    profileTab.addEventListener('click', () => showTab('profile'));
-
-    const pinnedTab = document.createElement('li');
-    pinnedTab.id = "tab-btn-pinned";
-    pinnedTab.className = "mtb-tab";
-    pinnedTab.innerHTML = `${pinIconSVG} <span style="margin-left:4px;">Pinned</span>`;
-    pinnedTab.addEventListener('click', () => showTab('pinned'));
-
-    const settingsTab = document.createElement('li');
-    settingsTab.id = "tab-btn-settings";
-    settingsTab.className = "mtb-tab";
-    settingsTab.innerHTML = `${settingsIconSVG} <span style="margin-left:4px;">Settings</span>`;
-    settingsTab.addEventListener('click', () => showTab('settings'));
-
-    ul.appendChild(profileTab);
-    ul.appendChild(pinnedTab);
-    ul.appendChild(settingsTab);
-
-    header.appendChild(ul);
-    return header;
-  }
-
   /***************************************************
-   * 6) Profile Tab Content
+   * 5) Profile Tab Logic
    ***************************************************/
   function getFieldValue(el) {
     if (!el) return "";
@@ -571,13 +488,11 @@
               document.body.removeChild(iframe);
               callback(cVal);
             } catch(e) {
-              console.error("[CARR] Error after showMore:", e);
               document.body.removeChild(iframe);
               callback("N/A");
             }
           }, 2000);
         } catch(e) {
-          console.error("[CARR] Initial iframe error:", e);
           document.body.removeChild(iframe);
           callback("N/A");
         }
@@ -665,16 +580,15 @@
   function populateProfileTab(container) {
     container.innerHTML = "";
 
-    // We'll place each chunk in a "section"
-    const secProfile = document.createElement('div');
-    secProfile.className = "mtb-section";
-
     const currentTicketId = extractTicketId();
     const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
 
+    // A "section" with the main fields
+    const secProfile = document.createElement('div');
+    secProfile.className = "mtb-section";
     secProfile.appendChild(createMenuItem("Ticket ID", tIdVal));
     secProfile.appendChild(createMenuItem("Account", accountVal));
     secProfile.appendChild(createMenuItem("Account Profile", profileVal));
@@ -682,6 +596,7 @@
     secProfile.appendChild(carrRow);
     secProfile.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
+    // Copy account/profile button
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
     copyAccBtn.className = "sway-btn sway-btn-xs";
@@ -694,10 +609,9 @@
       });
     });
     secProfile.appendChild(copyAccBtn);
-
     container.appendChild(secProfile);
 
-    // Summary + Copy Selected
+    // A "section" with copy actions
     const secActions = document.createElement('div');
     secActions.className = "mtb-section";
 
@@ -727,7 +641,7 @@
     secActions.appendChild(summaryDiv);
     container.appendChild(secActions);
 
-    // Recent Tickets
+    // A "section" with recent tickets
     const secRecent = document.createElement('div');
     secRecent.className = "mtb-section";
     const rHead = document.createElement('div');
@@ -773,7 +687,7 @@
     }
     container.appendChild(secRecent);
 
-    // Fetch CARR
+    // Async fetch CARR
     fetchCARR(function(cVal) {
       const vEl = carrRow.querySelector('.fresh-value');
       if (vEl) vEl.textContent = cVal;
@@ -781,7 +695,7 @@
   }
 
   /***************************************************
-   * 7) Pinned Tab Content
+   * 6) Pinned Tab
    ***************************************************/
   function buildPinnedTabContent(container) {
     container.innerHTML = "";
@@ -801,19 +715,28 @@
     items.forEach(function(item) {
       const card = document.createElement('div');
       card.style.width = "calc(50% - 4px)";
-      card.style.backgroundColor = "rgba(0,0,0,0.04)";
+      card.style.backgroundColor = "#f7fafc";
       card.style.border = "1px solid var(--panel-border)";
       card.style.borderRadius = "6px";
       card.style.textAlign = "center";
       card.style.padding = "12px";
       card.style.cursor = "pointer";
       card.style.color = "var(--panel-fg)";
+      card.style.transition = "background-color 0.15s, box-shadow 0.15s";
       card.innerHTML = `
         <div style="font-size:24px;">${item.icon}</div>
         <div style="margin-top:6px;font-weight:500;">${item.label}</div>
       `;
       card.addEventListener('click', function() {
         window.open(item.link, '_blank');
+      });
+      card.addEventListener('mouseover', () => {
+        card.style.backgroundColor = "#eef4f8";
+        card.style.boxShadow = "0 2px 6px rgba(0,0,0,0.1)";
+      });
+      card.addEventListener('mouseout', () => {
+        card.style.backgroundColor = "#f7fafc";
+        card.style.boxShadow = "none";
       });
       sec.appendChild(card);
     });
@@ -822,7 +745,7 @@
   }
 
   /***************************************************
-   * 8) Settings Tab Content
+   * 7) Settings Tab
    ***************************************************/
   function buildSettingsContent(container) {
     container.innerHTML = "";
@@ -847,15 +770,11 @@
   }
 
   /***************************************************
-   * 9) Main init
+   * 8) Main init
    ***************************************************/
   function initTool() {
-    if (!isTicketPage()) {
-      return;
-    }
-    if (document.getElementById("multitool-beast-wrapper")) {
-      return;
-    }
+    if (!isTicketPage()) return;
+    if (document.getElementById("multitool-beast-wrapper")) return;
 
     injectCSS();
     initTheme();
@@ -863,13 +782,14 @@
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
 
-    // Restore position
+    // Restore position if saved
     const pos = loadPref("boxPosition", null);
     if (pos && pos.top && pos.left) {
       wrapper.style.top = pos.top;
       wrapper.style.left = pos.left;
     }
 
+    // Display preference
     wrapper.style.display = loadPref("keepOpen", false) ? "block" : "none";
     if (loadPref("keepOpen", false)) {
       savePref("multitool_open", true);
@@ -879,46 +799,155 @@
       wrapper.style.display = "none";
     }
 
-    // Build top bar
-    const topBar = buildTopBar();
+    // Drag handle (tiny tab in top center)
+    const dragHandle = document.createElement('div');
+    dragHandle.className = "drag-handle";
+    wrapper.appendChild(dragHandle);
+
+    // Top bar (right side: up/down/close + theme toggle)
+    const topBar = document.createElement('div');
+    topBar.className = "mtb-top-bar";
+
+    // Round/cute circle buttons
+    const upBtn = document.createElement('button');
+    upBtn.className = "circle-btn";
+    upBtn.textContent = "↑";
+    upBtn.title = "Scroll to top";
+    upBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+    const downBtn = document.createElement('button');
+    downBtn.className = "circle-btn";
+    downBtn.textContent = "↓";
+    downBtn.title = "Scroll to bottom";
+    downBtn.addEventListener('click', () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = "circle-btn close-btn";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close Panel";
+    closeBtn.addEventListener('click', () => {
+      wrapper.style.display = "none";
+      savePref("multitool_open", false);
+      const openBtn = document.getElementById('sway-open-btn');
+      if (openBtn) openBtn.style.display = "block";
+    });
+
+    // Theme toggle
+    const toggleWrapper = document.createElement('div');
+    toggleWrapper.className = "theme-toggle-wrapper";
+    const toggleInput = document.createElement('input');
+    toggleInput.type = "checkbox";
+    toggleInput.id = "theme-toggle";
+    toggleInput.className = "theme-toggle";
+    toggleInput.checked = (loadPref("theme","light") === "dark");
+    toggleInput.addEventListener('change', () => {
+      toggleTheme(toggleInput.checked ? "dark" : "light");
+    });
+    const toggleLabel = document.createElement('label');
+    toggleLabel.htmlFor = "theme-toggle";
+    const moonSpan = document.createElement('span');
+    moonSpan.className = "toggle-icon toggle-icon--moon";
+    moonSpan.innerHTML = moonIconSVG;
+    const sunSpan = document.createElement('span');
+    sunSpan.className = "toggle-icon toggle-icon--sun";
+    sunSpan.innerHTML = sunIconSVG;
+    toggleLabel.appendChild(moonSpan);
+    toggleLabel.appendChild(sunSpan);
+    toggleWrapper.appendChild(toggleInput);
+    toggleWrapper.appendChild(toggleLabel);
+
+    // Append all to top bar
+    topBar.appendChild(upBtn);
+    topBar.appendChild(downBtn);
+    topBar.appendChild(closeBtn);
+    topBar.appendChild(toggleWrapper);
     wrapper.appendChild(topBar);
 
-    // Build header (tabs)
-    const headerTabs = buildHeaderTabs();
-    wrapper.appendChild(headerTabs);
+    // The header (logo + title)
+    const header = document.createElement('div');
+    header.className = "mtb-header";
 
-    // Content area
+    const tealiumLogo = document.createElement('img');
+    tealiumLogo.className = "mtb-logo";
+    tealiumLogo.src = "https://www.tealium.com/wp-content/uploads/2021/07/cropped-Tealium-logo-2021-32x32.png"; 
+    // ^ Replace with your desired Tealium logo
+
+    const h3 = document.createElement('h3');
+    h3.className = "mtb-title";
+    h3.textContent = "MultiTool Beast";
+
+    header.appendChild(tealiumLogo);
+    header.appendChild(h3);
+    wrapper.appendChild(header);
+
+    // The main content area (tabs + content)
     const content = document.createElement('div');
     content.className = "mtb-content";
 
+    // Tabs row
+    const tabsUL = document.createElement('ul');
+    tabsUL.className = "mtb-tabs";
+
+    const profileTab = document.createElement('li');
+    profileTab.id = "tab-btn-profile";
+    profileTab.className = "mtb-tab active";
+    profileTab.innerHTML = `${personIconSVG} <span>Profile</span>`;
+    profileTab.addEventListener('click', () => showTab('profile'));
+
+    const pinnedTab = document.createElement('li');
+    pinnedTab.id = "tab-btn-pinned";
+    pinnedTab.className = "mtb-tab";
+    pinnedTab.innerHTML = `${pinIconSVG} <span>Pinned</span>`;
+    pinnedTab.addEventListener('click', () => showTab('pinned'));
+
+    const settingsTab = document.createElement('li');
+    settingsTab.id = "tab-btn-settings";
+    settingsTab.className = "mtb-tab";
+    settingsTab.innerHTML = `${settingsIconSVG} <span>Settings</span>`;
+    settingsTab.addEventListener('click', () => showTab('settings'));
+
+    tabsUL.appendChild(profileTab);
+    tabsUL.appendChild(pinnedTab);
+    tabsUL.appendChild(settingsTab);
+
+    content.appendChild(tabsUL);
+
+    // Tab contents
     const profileContent = document.createElement('div');
     profileContent.id = "tab-content-profile";
+    profileContent.className = "tab-content";
     profileContent.style.display = "block";
 
     const pinnedContent = document.createElement('div');
     pinnedContent.id = "tab-content-pinned";
-    pinnedContent.style.display = "none";
+    pinnedContent.className = "tab-content";
 
     const settingsContent = document.createElement('div');
     settingsContent.id = "tab-content-settings";
-    settingsContent.style.display = "none";
+    settingsContent.className = "tab-content";
 
     content.appendChild(profileContent);
     content.appendChild(pinnedContent);
     content.appendChild(settingsContent);
+
     wrapper.appendChild(content);
+    document.body.appendChild(wrapper);
 
-    // Draggable handle
-    const dragHandle = document.createElement('div');
-    dragHandle.className = "sway-handle";
-    dragHandle.textContent = "Drag Here";
-    wrapper.appendChild(dragHandle);
+    // Populate tabs
+    populateProfileTab(profileContent);
+    buildPinnedTabContent(pinnedContent);
+    buildSettingsContent(settingsContent);
 
+    // Drag events
+    let isDragging = false;
     dragHandle.addEventListener('mousedown', function(e) {
       e.preventDefault();
+      isDragging = true;
+      wrapper.classList.add("dragging");
       let posX = e.clientX;
       let posY = e.clientY;
       function dragMove(e2) {
+        if (!isDragging) return;
         e2.preventDefault();
         let deltaX = posX - e2.clientX;
         let deltaY = e2.clientY - posY;
@@ -928,8 +957,11 @@
         wrapper.style.left = (wrapper.offsetLeft - deltaX) + "px";
       }
       function closeDrag() {
+        isDragging = false;
+        wrapper.classList.remove("dragging");
         document.removeEventListener('mousemove', dragMove);
         document.removeEventListener('mouseup', closeDrag);
+        // Save new position
         savePref("boxPosition", {
           top: wrapper.style.top,
           left: wrapper.style.left
@@ -939,18 +971,11 @@
       document.addEventListener('mouseup', closeDrag);
     });
 
-    document.body.appendChild(wrapper);
-
-    // Populate the tabs
-    populateProfileTab(profileContent);
-    buildPinnedTabContent(pinnedContent);
-    buildSettingsContent(settingsContent);
-
     // Show default tab
     showTab('profile');
   }
 
-  // Update content on ticket change
+  // Update content if the ticket changes
   let currentId = extractTicketId();
   setInterval(function() {
     const newId = extractTicketId();
@@ -964,7 +989,7 @@
   }, 3000);
 
   /***************************************************
-   * 10) Open button
+   * 9) The Open Button
    ***************************************************/
   const openBtn = document.createElement('button');
   openBtn.id = "sway-open-btn";
@@ -990,11 +1015,9 @@
   document.body.appendChild(openBtn);
 
   /***************************************************
-   * 11) Initialize on DOM ready
+   * 10) Initialize on DOM ready
    ***************************************************/
-  if (!isTicketPage()) {
-    return;
-  }
+  if (!isTicketPage()) return;
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
       initTheme();
