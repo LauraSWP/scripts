@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.95
+// @version      1.96
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -76,6 +76,7 @@
     return tickets;
   }
 
+  // Fetch CARR from the company page (by clicking the "show more" link)
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -163,7 +164,7 @@
         pinnedNav.classList.add('active');
       }
     } else {
-      console.error("Tab elements missing");
+      console.warn("[MultiTool Beast] Tab elements missing");
     }
   }
 
@@ -399,7 +400,7 @@
     initTheme();
     const isOpen = false; // initial state closed
       
-    // Create outer wrapper
+    // Create outer wrapper and apply a white background, border, and shadow
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     wrapper.style.position = "fixed";
@@ -411,6 +412,11 @@
     wrapper.style.minHeight = "200px";
     wrapper.style.resize = "both";
     wrapper.style.overflow = "auto";
+    // Apply background and border styles manually
+    wrapper.style.backgroundColor = "#ffffff";
+    wrapper.style.border = "1px solid #ccc";
+    wrapper.style.borderRadius = "4px";
+    wrapper.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
     wrapper.className = "widget-item";
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
@@ -571,7 +577,7 @@
     tabContentPinned.appendChild(pinnedContentDiv);
     wrapper.appendChild(tabContentPinned);
       
-    // Draggable handle
+    // Draggable handle (a small button above the header)
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.className = "btn btn-xs btn-outline-secondary";
@@ -581,11 +587,9 @@
     dragHandleBtn.style.transform = "translateX(-50%)";
     dragHandleBtn.style.cursor = "move";
     wrapper.appendChild(dragHandleBtn);
-    dragHandleBtn.onmousedown = function(e) {
+    dragHandleBtn.addEventListener("mousedown", function(e) {
       e.preventDefault();
       let posX = e.clientX, posY = e.clientY;
-      document.onmouseup = closeDrag;
-      document.onmousemove = dragMove;
       function dragMove(e2) {
         e2.preventDefault();
         let deltaX = posX - e2.clientX;
@@ -596,15 +600,18 @@
         wrapper.style.left = (wrapper.offsetLeft - deltaX) + "px";
       }
       function closeDrag() {
-        document.onmouseup = null;
-        document.onmousemove = null;
+        document.removeEventListener("mousemove", dragMove);
+        document.removeEventListener("mouseup", closeDrag);
         localStorage.setItem("multitool_position", JSON.stringify({
           top: wrapper.style.top,
           left: wrapper.style.left
         }));
       }
-    };
+      document.addEventListener("mousemove", dragMove);
+      document.addEventListener("mouseup", closeDrag);
+    });
       
+    // Show the Profile tab by default
     showTab('profile');
     initTheme();
     console.log("[MultiTool Beast] Loaded with Freshdesk native CSS classes.");
@@ -645,7 +652,7 @@
   openBtn.style.border = "1px solid #ccc";
   openBtn.style.boxShadow = "0 -2px 4px rgba(0,0,0,0.2)";
   openBtn.title = "Open MultiTool Beast";
-  // Tealium icon only
+  // Tealium icon only (no text)
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:32px;height:32px;">`;
   openBtn.style.display = (localStorage.getItem("multitool_open") === "true") ? "none" : "block";
   openBtn.addEventListener('click', function() {
