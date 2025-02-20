@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.79
+// @version      1.80
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -15,31 +15,41 @@
   'use strict';
 
   /***********************************************
-   * 0) Load Tailwind CSS Inline via GM_xmlhttpRequest
+   * 0) Load Tailwind CSS v4.0.7 & Tailwind Library Inline
    ***********************************************/
-  function loadTailwindCSS() {
-    if (!document.getElementById('tailwind-inline')) {
-      GM_xmlhttpRequest({
-        method: "GET",
-        url: "https://cdn.jsdelivr.net/npm/tailwindcss@3.2.7/dist/tailwind.min.css",
-        onload: function(response) {
-          if (response.status === 200) {
+  function loadExternalFile(url, type, id, callback) {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: url,
+      onload: function(response) {
+        if (response.status === 200) {
+          if (type === "css") {
             const style = document.createElement('style');
-            style.id = "tailwind-inline";
+            style.id = id;
             style.textContent = response.responseText;
             document.head.appendChild(style);
-            console.log("[MultiTool Beast] Tailwind CSS loaded inline.");
-          } else {
-            console.error("[MultiTool Beast] Failed to load Tailwind CSS, status:", response.status);
+            console.log("[MultiTool Beast] Loaded CSS:", url);
+          } else if (type === "js") {
+            const script = document.createElement('script');
+            script.id = id;
+            script.textContent = response.responseText;
+            document.head.appendChild(script);
+            console.log("[MultiTool Beast] Loaded JS:", url);
           }
+          if (callback) callback();
+        } else {
+          console.error("[MultiTool Beast] Failed to load", url, "status:", response.status);
         }
-      });
-    }
+      }
+    });
   }
-  loadTailwindCSS();
+  // Load Tailwind library (v4.0.7) from jsDelivr
+  loadExternalFile("https://cdn.jsdelivr.net/npm/tailwindcss@4.0.7/dist/lib.min.js", "js", "tailwind-lib-inline");
+  // Load Tailwind CSS (v4.0.7)
+  loadExternalFile("https://cdn.jsdelivr.net/npm/tailwindcss@4.0.7/index.min.css", "css", "tailwind-inline");
 
   /***********************************************
-   * 1) Custom Dark Mode Overrides (for Tailwind)
+   * 1) Custom Dark Mode Overrides
    ***********************************************/
   const darkModeOverrides = `
 html.dark body {
@@ -51,16 +61,17 @@ html.dark .box {
   border-color: #333 !important;
   color: #e0e0e0 !important;
 }
-html.dark .tabs ul li a {
-  color: #e0e0e0 !important;
-}
-html.dark .tabs ul li.border-b-2 {
-  border-bottom-color: #1e1e1e !important;
-}
-html.dark .button {
-  background-color: #333 !important;
+html.dark .border-gray-300 {
   border-color: #444 !important;
-  color: #e0e0e0 !important;
+}
+html.dark .bg-gray-100 {
+  background-color: #2d2d2d !important;
+}
+html.dark .text-blue-600 {
+  color: #9ecfff !important;
+}
+html.dark .bg-blue-600 {
+  background-color: #2a4365 !important;
 }
 `;
   function applyDarkModeCSS() {
@@ -77,7 +88,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 2) Utility: showTab (switch between Profile and Pinned tabs)
+   * 2) Utility: showTab (switch between "Profile" and "Pinned" tabs)
    ***********************************************/
   function showTab(which) {
     document.querySelectorAll('.multitool-tab-content').forEach(el => {
@@ -125,10 +136,8 @@ html.dark .button {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: Switch Appearance
-   *     We use custom CSS for our switch – when unchecked it shows a sun icon; when checked it shows a moon icon.
+   * 4) Dark Mode Toggle: Appearance via our switch
    ***********************************************/
-  // (Our switch markup in the UI below will use our custom classes defined in-line.)
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
     if (stored === 'theme-dark') {
@@ -469,7 +478,7 @@ html.dark .button {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.43.0) with Tailwind CSS...");
+    console.log("[MultiTool Beast] Initializing (v1.43.1) with Tailwind CSS inline.");
     initTheme();
     const isOpen = false;
     
@@ -509,12 +518,12 @@ html.dark .button {
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
     
-    // Top Bar (Tailwind flex layout)
+    // Top Bar
     const topBar = document.createElement('div');
     topBar.id = "multitool-topbar";
     topBar.className = "flex justify-between items-center mb-2 px-2";
     const topLeft = document.createElement('div');
-    // Night mode toggle switch – our custom switch CSS will style this
+    // Night mode toggle switch – styled below via custom classes (inline CSS in our HTML)
     const nightLabel = document.createElement('label');
     nightLabel.className = "switch inline-block";
     const nightInput = document.createElement('input');
@@ -567,17 +576,17 @@ html.dark .button {
     headerArea.appendChild(headerTxt);
     wrapper.appendChild(headerArea);
     
-    // Tabs Navigation (Tailwind styled)
+    // Tabs Navigation
     const tabsNav = document.createElement('div');
     tabsNav.className = "flex border-b border-gray-300 dark:border-gray-600 mb-2";
     const tabBtnProfile = document.createElement('div');
     tabBtnProfile.id = "tab-btn-profile";
-    tabBtnProfile.className = "px-3 py-1 cursor-pointer";
+    tabBtnProfile.className = "px-3 py-1 cursor-pointer multitool-tab-item";
     tabBtnProfile.innerHTML = `<span class="inline-block mr-1">${personIconSVG}</span><span>Profile</span>`;
     tabBtnProfile.addEventListener('click', () => showTab('profile'));
     const tabBtnPinned = document.createElement('div');
     tabBtnPinned.id = "tab-btn-pinned";
-    tabBtnPinned.className = "px-3 py-1 cursor-pointer";
+    tabBtnPinned.className = "px-3 py-1 cursor-pointer multitool-tab-item";
     tabBtnPinned.innerHTML = `<span class="inline-block mr-1">${pinIconSVG}</span><span>Pinned</span>`;
     tabBtnPinned.addEventListener('click', () => showTab('pinned'));
     tabsNav.appendChild(tabBtnProfile);
@@ -590,7 +599,6 @@ html.dark .button {
     tabProfile.className = "multitool-tab-content block"; // visible by default
     const profileContent = document.createElement('div');
     profileContent.className = "p-3";
-    // Row: "Copy Selected" and Slack/JIRA toggle
     const topBodyRowProfile = document.createElement('div');
     topBodyRowProfile.className = "flex items-center mb-2";
     const copyAllBtn = document.createElement('button');
@@ -618,7 +626,6 @@ html.dark .button {
     formatGroup.appendChild(jiraBtn);
     topBodyRowProfile.appendChild(formatGroup);
     profileContent.appendChild(topBodyRowProfile);
-    // "Include Summary" row
     const summaryRow = document.createElement('div');
     summaryRow.className = "mb-2";
     const sumCheck = document.createElement('input');
@@ -631,7 +638,6 @@ html.dark .button {
     summaryRow.appendChild(sumCheck);
     summaryRow.appendChild(sumLbl);
     profileContent.appendChild(summaryRow);
-    // Container for Profile fields
     const profileFieldsContainer = document.createElement('div');
     profileFieldsContainer.id = "profile-fields-container";
     profileContent.appendChild(profileFieldsContainer);
@@ -639,10 +645,10 @@ html.dark .button {
     tabProfile.appendChild(profileContent);
     wrapper.appendChild(tabProfile);
     
-    // Pinned Tab Content (Quick Access Grid) – must be separate from Profile
+    // Pinned Tab Content (Quick Access Grid)
     const tabPinned = document.createElement('div');
     tabPinned.id = "tab-content-pinned";
-    tabPinned.className = "multitool-tab-content hidden";
+    tabPinned.className = "multitool-tab-content hidden"; // initially hidden
     const pinnedContent = document.createElement('div');
     pinnedContent.className = "p-3";
     pinnedContent.innerHTML = `<p class="font-bold mb-2 text-sm">Quick Access Grid:</p>`;
@@ -652,7 +658,7 @@ html.dark .button {
     
     document.body.appendChild(wrapper);
     
-    // Draggable handle – a small button above the header
+    // Draggable handle (a small button above the header)
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.className = "button is-light is-small absolute -top-6 left-1/2 transform -translate-x-1/2 cursor-move";
@@ -684,7 +690,7 @@ html.dark .button {
     setFormat('slack');
     showTab('profile');
     initTheme();
-    console.log("[MultiTool Beast] Loaded (v1.43.0) with Tailwind CSS inline.");
+    console.log("[MultiTool Beast] Loaded (v1.43.1) with Tailwind CSS inline.");
   }
 
   /***********************************************
@@ -701,7 +707,7 @@ html.dark .button {
       }
     }
   }, 3000);
-
+  
   /***********************************************
    * 11) Initialize on DOM ready
    ***********************************************/
