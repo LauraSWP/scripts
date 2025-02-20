@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      4.1
+// @version      4.2
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -17,39 +17,44 @@
   // Domain check: determine if we're on Freshdesk or Jira
   const isFreshdesk = window.location.hostname.includes("freshdesk.com");
   const isJira = window.location.hostname.includes("tealium.atlassian.net");
-  function waitForAccountInput() {
-    let acctInput = document.getElementById("customfield_10652-field");
-    if (acctInput) {
-      const latestValue = localStorage.getItem("latest_account_profile") || "";
-      acctInput.value = latestValue;
-      console.log("Prefilled Account/Profile with:", latestValue);
-    } else {
-      setTimeout(waitForAccountInput, 1000);
-    }
-  }
-  
-  waitForNextButton();
-}
-  if (isJira) {
-    console.log("Jira page detected – running Jira-specific tasks.");
-  
-    // Check if we are on the classic create issue page
-    if (window.location.pathname.includes("CreateIssue!default.jspa")) {
-      
-      // Function to wait for the Next button, then click it
-      function waitForNextButton() {
-        let nextBtn = document.querySelector("input[type='submit'][value='Next']");
-        if (nextBtn) {
-          console.log("Next button found. Clicking it...");
-          nextBtn.click();
-          // After clicking, wait for the new form to load
-          waitForAccountInput();
-        } else {
-          setTimeout(waitForNextButton, 1000);
-        }
+
+// ----- Jira MultiTool Code Below -----
+if (isJira) {
+  console.log("Jira page detected – running Jira-specific tasks.");
+
+  // Check if we are on the classic create issue page
+  if (window.location.pathname.includes("CreateIssue!default.jspa")) {
+    
+    // Function to wait for the Next button, then click it
+    function waitForNextButton() {
+      let nextBtn = document.querySelector("input[type='submit'][value='Next']");
+      if (nextBtn) {
+        console.log("Next button found. Clicking it...");
+        nextBtn.click();
+        // After clicking, wait for the new form to load
+        waitForAccountInput();
+      } else {
+        setTimeout(waitForNextButton, 1000);
       }
     }
-  // ----- Freshdesk MultiTool Code Below -----
+    
+    // Function to wait for the Account/Profile input field and fill it in
+    function waitForAccountInput() {
+      let acctInput = document.getElementById("customfield_10652-field");
+      if (acctInput) {
+        const latestValue = localStorage.getItem("latest_account_profile") || "";
+        acctInput.value = latestValue;
+        console.log("Prefilled Account/Profile with:", latestValue);
+      } else {
+        setTimeout(waitForAccountInput, 1000);
+      }
+    }
+    
+    waitForNextButton();
+  }
+  
+  return; // Do not run the Freshdesk MultiTool UI on Jira pages.
+}
   if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
 
   /***************************************************
