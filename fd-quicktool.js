@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.9
+// @version      3.0
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -83,7 +83,7 @@
   --tab-active-fg: #0f2d3f;
 }
 
-/* Apply mode variables */
+/* Mode-specific variables */
 body:not(.dark-mode-override) {
   --panel-bg: var(--light-panel-bg);
   --panel-fg: var(--light-panel-fg);
@@ -95,14 +95,14 @@ body.dark-mode-override {
   --panel-border: var(--dark-panel-border);
 }
 
-/* Main Panel – fixed height; only width is resizable */
+/* Main Panel – fixed height of 550px; not resizable, only scrollable */
 #multitool-beast-wrapper {
   position: fixed;
   bottom: 80px;
   right: 20px;
   width: 380px;
   min-width: 280px;
-  height: 220px;
+  height: 550px;
   background-color: var(--panel-bg);
   color: var(--panel-fg);
   border: 2px solid var(--panel-border);
@@ -110,8 +110,7 @@ body.dark-mode-override {
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
   z-index: 999999;
   display: none;
-  resize: horizontal;
-  overflow: auto;
+  overflow-y: auto;
   transition: box-shadow 0.2s;
 }
 
@@ -137,7 +136,7 @@ body.dark-mode-override {
   pointer-events: all;
 }
 
-/* Top Bar: separation by bottom border */
+/* Top Bar with bottom border */
 .mtb-top-bar {
   display: flex;
   justify-content: space-between;
@@ -147,7 +146,8 @@ body.dark-mode-override {
   margin-bottom: 4px;
 }
 
-/* Top bar containers */
+/* Top Bar containers:
+   Left: dark mode toggle; Right: circle buttons */
 .mtb-top-bar-left,
 .mtb-top-bar-right {
   display: flex;
@@ -241,7 +241,7 @@ body.dark-mode-override {
   transform: translateX(22px);
 }
 
-/* Header with cool bottom gradient */
+/* Header with bottom gradient */
 .mtb-header {
   display: flex;
   align-items: center;
@@ -273,7 +273,7 @@ body.dark-mode-override {
   margin: 0;
 }
 
-/* Main content area */
+/* Main Content Area */
 .mtb-content {
   padding: 8px 12px;
 }
@@ -307,12 +307,12 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-/* Hide tab content by default */
+/* Hide Tab Content by Default */
 .tab-content {
   display: none;
 }
 
-/* Section blocks */
+/* Section Blocks */
 .mtb-section {
   background-color: rgba(0,0,0,0.02);
   border: 1px solid var(--panel-border);
@@ -321,7 +321,7 @@ body.dark-mode-override {
   margin-bottom: 8px;
 }
 
-/* Field rows with bottom border */
+/* Field Rows with bottom border */
 .fieldRow {
   display: flex;
   align-items: center;
@@ -334,7 +334,7 @@ body.dark-mode-override {
   border-bottom: none;
 }
 
-/* Account value styling */
+/* Account Value Styling */
 .fresh-value {
   background-color: rgba(0,0,0,0.05);
   padding: 2px 4px;
@@ -343,7 +343,7 @@ body.dark-mode-override {
   font-weight: 500;
 }
 
-/* Text-based copy buttons */
+/* Text-based Copy Buttons */
 .sway-btn-text {
   padding: 6px 12px;
   border-radius: 12px;
@@ -359,7 +359,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* Icon-only copy buttons */
+/* Icon-only Copy Buttons */
 .sway-btn-icon {
   background-color: transparent;
   border: 1px solid var(--tab-border);
@@ -375,7 +375,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* Recent ticket links – cute style */
+/* Recent Ticket Links – Cuter Style */
 .recent-ticket {
   display: inline-block;
   background-color: #f0f8ff;
@@ -391,7 +391,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Open button (floating) */
+/* Open Button (Floating) */
 #sway-open-btn {
   position: fixed;
   bottom: 0;
@@ -596,7 +596,7 @@ body.dark-mode-override {
     });
   }
 
-  // Create a field row with styled value
+  // Create a field row with styled value and bottom border
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow";
@@ -695,7 +695,7 @@ body.dark-mode-override {
 
     container.appendChild(secProfile);
 
-    // Section for Recent Tickets with cute styling
+    // Section for Recent Tickets with cuter styling
     const secRecent = document.createElement('div');
     secRecent.className = "mtb-section";
     const rHead = document.createElement('div');
@@ -753,7 +753,7 @@ body.dark-mode-override {
     sec.className = "mtb-section";
     sec.style.textAlign = "center";
 
-    // Create a single button for Jira
+    // Jira Button – open Jira form with pre-filled data
     const jiraBtn = document.createElement('button');
     jiraBtn.className = "sway-btn-text";
     jiraBtn.textContent = "Open Jira Form";
@@ -795,7 +795,6 @@ body.dark-mode-override {
     fontSizeLabel.textContent = "Font Size: ";
     const fontSizeValue = document.createElement('span');
     fontSizeValue.id = "fontSizeValue";
-    // Use stored value or default 14px
     let storedFontSize = loadPref("mtb_fontSize", 14);
     fontSizeValue.textContent = storedFontSize;
     fontSizeLabel.appendChild(fontSizeValue);
@@ -821,16 +820,13 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * 8) Open Jira Form (Pre-fill Data)
+   * 8) Open Jira Form – Pre-fill Data
    ***************************************************/
   function openJiraForm() {
-    // Example Jira URL – replace with your actual Jira instance URL
-    const jiraBaseURL = "https://jira.example.com/secure/CreateIssue!default.jspa";
-    // Gather some data from the Profile fields
-    const ticketId = extractTicketId();
+    const jiraBaseURL = "https://tealium.atlassian.net/jira/software/c/projects/CSI/boards/153";
+    const ticketId = extractTicketId() || "";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
-    // Build prefill parameters – adjust parameter names as needed by your Jira setup
     const summary = encodeURIComponent("Freshdesk Ticket " + ticketId);
     const description = encodeURIComponent("Account: " + accountVal + "\nProfile: " + profileVal);
     const jiraURL = jiraBaseURL + "?summary=" + summary + "&description=" + description;
@@ -849,7 +845,7 @@ body.dark-mode-override {
 
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
-    // Set initial font size if stored
+    // Set fixed font size if stored
     let initFontSize = loadPref("mtb_fontSize", 14);
     wrapper.style.fontSize = initFontSize + "px";
 
@@ -876,7 +872,8 @@ body.dark-mode-override {
     // Top Bar
     const topBar = document.createElement('div');
     topBar.className = "mtb-top-bar";
-    // Left: Dark mode toggle
+
+    // Left container: Dark mode toggle
     const topBarLeft = document.createElement('div');
     topBarLeft.className = "mtb-top-bar-left";
     const toggleWrapper = document.createElement('div');
@@ -903,7 +900,7 @@ body.dark-mode-override {
     toggleWrapper.appendChild(toggleLabel);
     topBarLeft.appendChild(toggleWrapper);
 
-    // Right: Up, Down, Close buttons
+    // Right container: Up, Down, Close buttons
     const topBarRight = document.createElement('div');
     topBarRight.className = "mtb-top-bar-right";
     const upBtn = document.createElement('button');
@@ -930,12 +927,11 @@ body.dark-mode-override {
     topBarRight.appendChild(downBtn);
     topBarRight.appendChild(closeBtn);
 
-    // Assemble Top Bar
     topBar.appendChild(topBarLeft);
     topBar.appendChild(topBarRight);
     wrapper.appendChild(topBar);
 
-    // Header with cool gradient
+    // Header with gradient
     const header = document.createElement('div');
     header.className = "mtb-header";
     const tealiumLogo = document.createElement('img');
@@ -973,7 +969,6 @@ body.dark-mode-override {
     tabsUL.appendChild(settingsTab);
     content.appendChild(tabsUL);
 
-    // Tab content containers
     const profileContent = document.createElement('div');
     profileContent.id = "tab-content-profile";
     profileContent.className = "tab-content";
@@ -995,7 +990,7 @@ body.dark-mode-override {
     buildPinnedTabContent(pinnedContent);
     buildSettingsContent(settingsContent);
 
-    // Drag Events for the drag handle
+    // Drag Events for Drag Handle
     let isDragging = false;
     dragHandle.addEventListener('mousedown', function(e) {
       e.preventDefault();
@@ -1031,11 +1026,10 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * 10) Open Jira Form – Pre-fill Data into Jira URL
+   * 10) Open Jira Form – Pre-fill Data
    ***************************************************/
   function openJiraForm() {
-    // Replace with your Jira instance URL
-    const jiraBaseURL = "https://jira.example.com/secure/CreateIssue!default.jspa";
+    const jiraBaseURL = "https://tealium.atlassian.net/jira/software/c/projects/CSI/boards/153";
     const ticketId = extractTicketId() || "";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
@@ -1046,7 +1040,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * 11) Update content if ticket changes
+   * 11) Update content on ticket change
    ***************************************************/
   let currentId = extractTicketId();
   setInterval(function() {
