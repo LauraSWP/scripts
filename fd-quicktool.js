@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      3.6
+// @version      3.7
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -10,6 +10,7 @@
 // @match        *://tealium.atlassian.net/*
 // @grant        none
 // ==/UserScript==
+
 
 (function() {
   'use strict';
@@ -22,7 +23,7 @@
 
   /***************************************************
    * JIRA-SPECIFIC CODE
-   * Only run if URL contains autofillJira=true and on the Create Issue page.
+   * Only run on Jira when URL contains autofillJira=true and is the Create Issue page.
    ***************************************************/
   if (isJira) {
     if (window.location.search.includes("autofillJira=true") && window.location.href.includes("CreateIssue!default.jspa")) {
@@ -32,7 +33,7 @@
         if (nextBtn) {
           console.log("[MultiTool] Found 'Next' button; clicking it...");
           nextBtn.click();
-          // Wait for page transition (adjust timeout if needed)
+          // Wait for page transition—adjust timeout if needed.
           setTimeout(fillCustomField, 3000);
         } else {
           console.log("[MultiTool] 'Next' button not found; attempting to fill field...");
@@ -52,12 +53,11 @@
       }
       const jiraInterval = setInterval(autoAdvanceThenFill, 1000);
     }
-    return; // Exit here so Freshdesk UI isn't built on Jira.
+    return; // Exit here so Freshdesk UI isn’t built on Jira.
   }
 
   /***************************************************
-   * FRESHDESK MULTITOOL CODE
-   * Runs on Freshdesk ticket pages.
+   * FRESHDESK MULTITOOL CODE (runs on Freshdesk ticket pages)
    ***************************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
@@ -93,7 +93,7 @@
     const note = document.querySelector(".ticket_note[data-note-id]");
     return note ? note.textContent.trim() : "";
   }
-  // Get recent tickets (last 7 days)
+  // Get recent tickets (last 7 days) excluding current ticket.
   function getRecentTickets(currentId) {
     const tickets = [];
     const els = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -111,7 +111,7 @@
             const subject = linkEl.textContent.trim();
             const m = href.match(/\/a\/tickets\/(\d+)/);
             const foundId = m ? m[1] : "";
-            if (currentId && parseInt(foundId,10) === parseInt(currentId,10)) return;
+            if (currentId && parseInt(foundId, 10) === parseInt(currentId, 10)) return;
             tickets.push({ href: href, subject: subject, date: dt });
           }
         }
@@ -164,30 +164,46 @@
     };
     document.body.appendChild(iframe);
   }
-  
+
   /***************************************************
-   * THEME FUNCTIONS
+   * SVG ICONS
    ***************************************************/
-  function applyTheme(theme) {
-    if (theme === "dark") {
-      document.body.classList.add("dark-mode-override");
-    } else {
-      document.body.classList.remove("dark-mode-override");
-    }
-  }
-  function initTheme() {
-    const storedTheme = loadPref("theme", "light");
-    applyTheme(storedTheme);
-  }
-  function toggleTheme(force) {
-    let current = loadPref("theme", "light");
-    let newTheme = force ? force : (current === "dark" ? "light" : "dark");
-    savePref("theme", newTheme);
-    applyTheme(newTheme);
-  }
-  
+  const moonIconSVG = `
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+ stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+   <path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9 9 0 1 0 20.354 15.354z"></path>
+</svg>`;
+  const sunIconSVG = `
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+ stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+   <circle cx="12" cy="12" r="5"></circle>
+   <line x1="12" y1="1" x2="12" y2="3"></line>
+   <line x1="12" y1="21" x2="12" y2="23"></line>
+   <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+   <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+   <line x1="1" y1="12" x2="3" y2="12"></line>
+   <line x1="21" y1="12" x2="23" y2="12"></line>
+   <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+   <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+</svg>`;
+  const personIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+   <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
+</svg>`;
+  const pinIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+   <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
+</svg>`;
+  const settingsIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+   <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492z"/>
+   <path d="M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+   <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.115 2.693l.319.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.292c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.115l-.094.319c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.693-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291a1.873 1.873 0 0 0-1.115-2.693l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094a1.873 1.873 0 0 0 1.115-2.693l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.693-1.115l.094-.319z"/>
+</svg>`;
+
   /***************************************************
-   * CSS INJECTION (PLACEHOLDER)
+   * CSS INJECTION (PLACEHOLDER – insert your final CSS here)
    ***************************************************/
   function injectCSS() {
     if (document.getElementById("multitool-beast-css")) return;
@@ -527,6 +543,27 @@
     }`;
     document.head.appendChild(style);
   }
+
+  /***************************************************
+   * THEME FUNCTIONS
+   ***************************************************/
+  function applyTheme(theme) {
+    if (theme === "dark") {
+      document.body.classList.add("dark-mode-override");
+    } else {
+      document.body.classList.remove("dark-mode-override");
+    }
+  }
+  function initTheme() {
+    const storedTheme = loadPref("theme", "light");
+    applyTheme(storedTheme);
+  }
+  function toggleTheme(force) {
+    let current = loadPref("theme", "light");
+    let newTheme = force ? force : (current === "dark" ? "light" : "dark");
+    savePref("theme", newTheme);
+    applyTheme(newTheme);
+  }
   
   /***************************************************
    * TAB SWITCHING
@@ -588,13 +625,13 @@
       return row;
     }
     
-    // Ticket ID row (no copy button)
+    // Ticket ID row (no copy)
     sec.appendChild(createFieldRow("Ticket ID", "#" + ticketId, false));
-    // Account row with copy
+    // Account row
     sec.appendChild(createFieldRow("Account", accountVal));
-    // Profile row with copy
+    // Profile row
     sec.appendChild(createFieldRow("Account Profile", profileVal));
-    // CARR row (will be updated asynchronously; no copy button)
+    // CARR row (asynchronous update)
     const carrRow = createFieldRow("CARR", "Fetching...", false);
     sec.appendChild(carrRow);
     // Relevant URLs row
@@ -614,7 +651,7 @@
     });
     sec.appendChild(copyAccBtn);
     
-    // Row for "Copy Selected" and "Include Summary" checkbox
+    // Row for "Copy Selected" button and "Include Summary" checkbox
     const copyRow = document.createElement("div");
     copyRow.style.display = "flex";
     copyRow.style.alignItems = "center";
@@ -673,7 +710,7 @@
       sec.appendChild(noDiv);
     }
     
-    // Asynchronously fetch CARR value and update the CARR row
+    // Asynchronously update the CARR row
     fetchCARR(function(cVal) {
       const spans = carrRow.getElementsByClassName("fresh-value");
       if (spans.length > 0) spans[0].textContent = cVal;
@@ -682,6 +719,7 @@
     container.appendChild(sec);
   }
   
+  // Copy Selected: Copy text from all selected field rows (if you add checkboxes to rows, etc.)
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll(".fieldRow").forEach(function(row) {
@@ -936,7 +974,7 @@
   }
    
   /***************************************************
-   * TICKET CHANGE UPDATE
+   * UPDATE ON TICKET CHANGE
    ***************************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/\/a\/tickets\/(\d+)/);
