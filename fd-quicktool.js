@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.96
+// @version      1.97
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -10,12 +10,13 @@
 // @grant        none
 // ==/UserScript==
 
+
 (function() {
   'use strict';
 
-  /***********************************************
-   * 0) Check if this is a ticket page
-   ***********************************************/
+  /***************************************************
+   * 0) Check if current page is a Ticket page
+   ***************************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
   }
@@ -24,107 +25,229 @@
     return;
   }
 
-  /***********************************************
-   * 1) Utility Functions
-   ***********************************************/
-  function extractTicketId() {
-    const match = window.location.pathname.match(/\/a\/tickets\/(\d+)/);
-    return match ? match[1] : null;
-  }
+  /***************************************************
+   * 1) Inline custom "Sway"-style CSS
+   ***************************************************/
+  const customCSS = `
+/* Root custom variables */
+:root {
+  --sway-bg: #f8faff;       /* Soft pastel background */
+  --sway-panel-bg: #ffffff; /* White panel background */
+  --sway-border: #e2e8f0;   /* Soft border color */
+  --sway-primary: #3B82F6;  /* e.g. Tailwind's "blue-500" */
+  --sway-secondary: #64748b;/* e.g. Tailwind's "slate-500" */
+  --sway-radius: 8px;
+  --sway-boxshadow: 0 4px 10px rgba(0,0,0,0.08);
+  --sway-text: #111827;     /* near black */
+  --sway-text-light: #6b7280;
+  --sway-info: #2563eb;     /* for links */
+  --sway-danger: #ef4444;
+}
+
+/* Dark mode toggles: we add a "dark" class on <body> */
+body.dark {
+  background-color: #111827 !important;
+  color: #e0e0e0 !important;
+}
+body.dark a {
+  color: #93c5fd !important; /* Lighter link in dark mode */
+}
+body.dark .sway-panel {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #e0e0e0 !important;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5) !important;
+}
+body.dark .sway-header {
+  background-color: #1f2937 !important;
+}
+body.dark .sway-tab.active a {
+  color: #fff !important;
+  background-color: var(--sway-primary) !important;
+}
+body.dark .sway-btn-outline {
+  border-color: #555 !important;
+  color: #eee !important;
+}
+body.dark .sway-btn-info {
+  background-color: var(--sway-primary) !important;
+  color: #fff !important;
+}
+
+/* The main panel */
+#multitool-beast-wrapper.sway-panel {
+  background-color: var(--sway-panel-bg);
+  border: 1px solid var(--sway-border);
+  border-radius: var(--sway-radius);
+  box-shadow: var(--sway-boxshadow);
+  color: var(--sway-text);
+  font-family: "Inter", "Segoe UI", sans-serif;
+}
+
+/* The header bar */
+.sway-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--sway-bg);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--sway-border);
+  border-top-left-radius: var(--sway-radius);
+  border-top-right-radius: var(--sway-radius);
+  cursor: move;
+}
+
+/* Title & icon */
+.sway-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--sway-text);
+}
+.sway-titlebar img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+/* Right side (buttons) */
+.sway-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Tabs */
+.sway-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--sway-border);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sway-tab {
+  padding: 10px 16px;
+  cursor: pointer;
+  color: var(--sway-secondary);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+.sway-tab.active {
+  color: var(--sway-primary);
+  border-bottom-color: var(--sway-primary);
+  font-weight: 600;
+}
+.sway-tab:hover {
+  background-color: #f1f5f9;
+}
+.sway-tab a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Content area */
+.sway-content {
+  padding: 12px;
+  font-size: 14px;
+  color: var(--sway-text);
+}
+
+/* Buttons */
+.sway-btn-xs {
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+}
+.sway-btn-danger {
+  background-color: var(--sway-danger);
+  color: #fff;
+}
+.sway-btn-outline {
+  border: 1px solid var(--sway-border);
+  background-color: transparent;
+  color: var(--sway-text);
+}
+.sway-btn-info {
+  background-color: var(--sway-primary);
+  color: #fff;
+}
+.sway-btn:hover {
+  opacity: 0.9;
+}
+
+/* Draggable handle button */
+.sway-handle {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  padding: 4px 8px;
+  background-color: #fff;
+  box-shadow: var(--sway-boxshadow);
+}
+
+/* Field rows */
+.fieldRow {
+  border-bottom: 1px solid var(--sway-border);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fieldRow .field-selector {
+  margin-right: 4px;
+}
+.fieldRow .fw-bold {
+  font-weight: 600;
+}
+.fieldRow .fresh-value {
+  background-color: #f9fafb;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* The open button (tab style at bottom-right) */
+#sway-open-btn {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  z-index: 99999;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: var(--sway-radius);
+  border-bottom-right-radius: var(--sway-radius);
+  padding: 8px;
+  background-color: #fff;
+  border: 1px solid var(--sway-border);
+  box-shadow: 0 -2px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+#sway-open-btn img {
+  width: 32px;
+  height: 32px;
+}
+
+/* Dark mode specific classes can be extended if needed */
+`;
+
+  // Insert the style into the page
+  const styleEl = document.createElement("style");
+  styleEl.textContent = customCSS;
+  document.head.appendChild(styleEl);
+
+  /***************************************************
+   * 2) Utility Functions & Variables
+   ***************************************************/
   let currentTicketId = extractTicketId();
 
-  function getFieldValue(el) {
-    if (!el) return "";
-    let val = el.value || el.getAttribute('value') || el.getAttribute('placeholder') || "";
-    val = val.trim();
-    if (!val) {
-      let p = el.parentElement;
-      if (p) val = p.innerText.trim();
-    }
-    if (!val || ["account", "profile"].includes(val.toLowerCase())) val = "N/A";
-    return val;
-  }
-
-  function getSummary() {
-    const note = document.querySelector('.ticket_note[data-note-id]');
-    return note ? note.textContent.trim() : "";
-  }
-
-  function getRecentTickets() {
-    const tickets = [];
-    const els = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
-    if (!els.length) return tickets;
-    const now = new Date();
-    const threshold = 7 * 24 * 60 * 60 * 1000;
-    els.forEach(function(el) {
-      const timeEl = el.querySelector('[data-test-id="timeline-activity-time"]');
-      if (timeEl) {
-        let dt = new Date(timeEl.textContent.trim().replace(',', ''));
-        if (!isNaN(dt) && (now - dt <= threshold) && dt <= now) {
-          const linkEl = el.querySelector('a.text__link-heading');
-          if (linkEl) {
-            const href = linkEl.href;
-            const subject = linkEl.textContent.trim();
-            const m = href.match(/\/a\/tickets\/(\d+)/);
-            const foundId = m ? m[1] : "";
-            if (currentTicketId && parseInt(foundId,10) === parseInt(currentTicketId,10)) return;
-            tickets.push({ href: href, subject: subject, date: dt });
-          }
-        }
-      }
-    });
-    return tickets;
-  }
-
-  // Fetch CARR from the company page (by clicking the "show more" link)
-  function fetchCARR(callback) {
-    const compLink = document.querySelector('a[href*="/a/companies/"]');
-    if (!compLink) return callback("N/A");
-    const rel = compLink.getAttribute('href');
-    const compURL = window.location.origin + rel;
-    console.log("[CARR] Company URL:", compURL);
-    const iframe = document.createElement('iframe');
-    iframe.style.position = "absolute";
-    iframe.style.top = "-9999px";
-    iframe.style.left = "-9999px";
-    iframe.style.width = "1024px";
-    iframe.style.height = "768px";
-    iframe.style.visibility = "hidden";
-    iframe.src = compURL;
-    iframe.onload = function() {
-      setTimeout(function() {
-        try {
-          const doc = iframe.contentDocument || iframe.contentWindow.document;
-          const showMore = doc.querySelector('div.contacts__sidepanel--state[data-test-toggle]');
-          if (showMore) showMore.click();
-          setTimeout(function() {
-            try {
-              const cElem = doc.querySelector('[data-test-id="fields-info-carr_usd"] [data-test-field-content="CARR (converted)"] .text__content');
-              let cVal = cElem ? cElem.textContent.trim() : "N/A";
-              if (cVal !== "N/A" && !isNaN(cVal.replace(/[.,]/g, ""))) {
-                cVal = parseInt(cVal.replace(/[.,]/g, ""), 10).toLocaleString() + "$";
-              }
-              document.body.removeChild(iframe);
-              callback(cVal);
-            } catch(e) {
-              console.error("[CARR] Error after showMore:", e);
-              document.body.removeChild(iframe);
-              callback("N/A");
-            }
-          }, 3000);
-        } catch(e) {
-          console.error("[CARR] Initial iframe error:", e);
-          document.body.removeChild(iframe);
-          callback("N/A");
-        }
-      }, 3000);
-    };
-    document.body.appendChild(iframe);
-  }
-
-  /***********************************************
-   * 2) Dark Mode Functions
-   ***********************************************/
+  /***************************************************
+   * 3) Dark Mode
+   ***************************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
     if (stored === 'theme-dark') {
@@ -143,9 +266,9 @@
     }
   }
 
-  /***********************************************
-   * 3) Tab Switching Function: showTab
-   ***********************************************/
+  /***************************************************
+   * 4) showTab (switch between Profile & Pinned)
+   ***************************************************/
   function showTab(which) {
     const profileTab = document.getElementById('tab-content-profile');
     const pinnedTab = document.getElementById('tab-content-pinned');
@@ -168,24 +291,27 @@
     }
   }
 
-  /***********************************************
-   * 4) Inline SVG Icons
-   ***********************************************/
-  const personIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  /***************************************************
+   * 5) Inline SVG Icons
+   ***************************************************/
+  const personIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
   <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
 </svg>`;
-  const pinIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  const pinIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
   <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
 </svg>`;
-  const copyIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  const copyIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
   <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
   <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
 </svg>`;
 
-  /***********************************************
-   * 5) Format & Copy Functions (Slack/JIRA)
-   ***********************************************/
+  /***************************************************
+   * 6) Slack/JIRA & Copy
+   ***************************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
     formatMode = mode;
@@ -200,6 +326,7 @@
       jiraBtn.classList.add('active');
     }
   }
+
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(function(row) {
@@ -248,12 +375,11 @@
 
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
-    row.className = "fieldRow mb-2 pb-2";
-    row.style.borderBottom = "1px solid #ddd";
+    row.className = "fieldRow";
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = true;
-    check.className = "field-selector me-2";
+    check.className = "field-selector";
     row.appendChild(check);
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
@@ -262,11 +388,12 @@
     const finalVal = valueText || "N/A";
     const valSpan = document.createElement('span');
     valSpan.textContent = finalVal;
-    valSpan.className = "fresh-value ms-2 bg-light rounded p-1";
+    valSpan.className = "fresh-value";
     row.appendChild(valSpan);
     if (withCopy) {
       const btn = document.createElement('button');
-      btn.className = "btn btn-xs btn-outline-secondary ms-2 copy-btn";
+      btn.className = "sway-btn-xs sway-btn-outline copy-btn";
+      btn.style.marginLeft = "8px";
       btn.innerHTML = copyIconSVG;
       btn.title = "Copy";
       btn.addEventListener('click', function() {
@@ -280,55 +407,65 @@
     return row;
   }
 
-  /***********************************************
-   * 6) Build Pinned Tab Content (Quick Access Grid)
-   ***********************************************/
+  /***************************************************
+   * 7) Quick Access Grid
+   ***************************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
-    grid.className = "row";
+    grid.style.display = "flex";
+    grid.style.flexWrap = "wrap";
+    grid.style.gap = "8px";
+
     const items = [
       { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
       { icon: '🔗', label: 'Website', link: 'https://www.example.com' },
       { icon: '📊', label: 'Analytics', link: 'https://analytics.google.com' },
       { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' }
     ];
+
     items.forEach(function(item) {
-      const col = document.createElement('div');
-      col.className = "col-6";
-      const btn = document.createElement('div');
-      btn.className = "card text-center";
-      btn.style.cursor = "pointer";
-      btn.addEventListener('click', function() { window.open(item.link, '_blank'); });
-      const cardBody = document.createElement('div');
-      cardBody.className = "card-body p-2";
-      cardBody.innerHTML = `<div style="font-size: 24px;">${item.icon}</div><div>${item.label}</div>`;
-      btn.appendChild(cardBody);
-      col.appendChild(btn);
-      grid.appendChild(col);
+      const card = document.createElement('div');
+      card.style.width = "calc(50% - 4px)";
+      card.style.backgroundColor = "#f9fafb";
+      card.style.border = "1px solid #e2e8f0";
+      card.style.borderRadius = "6px";
+      card.style.textAlign = "center";
+      card.style.padding = "12px";
+      card.style.cursor = "pointer";
+      card.style.flex = "0 0 auto";
+      card.innerHTML = `<div style="font-size:24px;">${item.icon}</div>
+                        <div style="margin-top:6px;font-weight:500;">${item.label}</div>`;
+      card.addEventListener('click', function() {
+        window.open(item.link, '_blank');
+      });
+      grid.appendChild(card);
     });
+
     return grid;
   }
 
-  /***********************************************
-   * 7) Populate Profile Tab (Ticket/Field Info)
-   ***********************************************/
+  /***************************************************
+   * 8) Populate Profile Tab
+   ***************************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
     const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
-        
+
     container.appendChild(createMenuItem("Ticket ID", tIdVal));
     container.appendChild(createMenuItem("Account", accountVal));
     container.appendChild(createMenuItem("Account Profile", profileVal));
     const carrRow = createMenuItem("CARR", "Fetching...", false);
     container.appendChild(carrRow);
     container.appendChild(createMenuItem("Relevant URLs", urlsVal));
-        
+
+    // "Copy Account/Profile" button
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
-    copyAccBtn.className = "btn btn-xs btn-outline-secondary mt-2";
+    copyAccBtn.className = "sway-btn-xs sway-btn-outline";
+    copyAccBtn.style.marginTop = "8px";
     copyAccBtn.addEventListener('click', function() {
       const txt = accountVal + "/" + profileVal;
       navigator.clipboard.writeText(txt).then(function() {
@@ -337,34 +474,36 @@
       });
     });
     container.appendChild(copyAccBtn);
-        
+
+    // Divider
     const hr = document.createElement('hr');
     hr.style.margin = "10px 0";
     container.appendChild(hr);
-        
+
+    // "Recent Tickets"
     const rHead = document.createElement('div');
     rHead.textContent = "Recent Tickets (last 7 days)";
-    rHead.className = "fw-bold mb-2";
+    rHead.style.fontWeight = "600";
+    rHead.style.marginBottom = "8px";
     container.appendChild(rHead);
-        
+
     const recTix = getRecentTickets();
     if (recTix.length > 0) {
       recTix.forEach(function(t) {
         const tDiv = document.createElement('div');
-        tDiv.style.marginBottom = "10px";
-        tDiv.style.paddingBottom = "10px";
+        tDiv.style.marginBottom = "8px";
+        tDiv.style.paddingBottom = "8px";
         tDiv.style.borderBottom = "1px solid #ddd";
-        if (document.body.classList.contains("dark")) {
-          tDiv.style.borderBottom = "1px solid #444";
-        }
+
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
         a.textContent = t.subject;
-        a.className = "text-info";
+        a.style.color = "#2563eb";
         tDiv.appendChild(a);
+
         const cpBtn = document.createElement('button');
-        cpBtn.className = "btn btn-xs btn-outline-secondary ms-2 copy-btn";
+        cpBtn.className = "sway-btn-xs sway-btn-outline ms-2 copy-btn";
         cpBtn.innerHTML = copyIconSVG;
         cpBtn.title = "Copy Link";
         cpBtn.addEventListener('click', function() {
@@ -374,6 +513,7 @@
           });
         });
         tDiv.appendChild(cpBtn);
+
         container.appendChild(tDiv);
       });
     } else {
@@ -381,215 +521,182 @@
       noDiv.textContent = "No tickets in the last 7 days";
       container.appendChild(noDiv);
     }
-        
+
+    // Fetch the CARR asynchronously
     fetchCARR(function(cVal) {
-      const vEl = carrRow.querySelector('.bg-light');
+      const vEl = carrRow.querySelector('.fresh-value');
       if (vEl) vEl.textContent = cVal;
     });
   }
 
-  /***********************************************
-   * 8) Build Entire Tool Layout Using Freshdesk Native CSS
-   ***********************************************/
+  /***************************************************
+   * 9) Main initTool
+   ***************************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing with Freshdesk native CSS classes.");
+    console.log("[MultiTool Beast] Initializing with Sway style.");
     initTheme();
+
     const isOpen = false; // initial state closed
-      
-    // Create outer wrapper and apply a white background, border, and shadow
+
+    // Outer container
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
+    wrapper.className = "sway-panel";
     wrapper.style.position = "fixed";
     wrapper.style.bottom = "80px";
     wrapper.style.right = "20px";
-    wrapper.style.zIndex = "10000";
     wrapper.style.width = "360px";
     wrapper.style.minWidth = "200px";
     wrapper.style.minHeight = "200px";
     wrapper.style.resize = "both";
     wrapper.style.overflow = "auto";
-    // Apply background and border styles manually
-    wrapper.style.backgroundColor = "#ffffff";
-    wrapper.style.border = "1px solid #ccc";
-    wrapper.style.borderRadius = "4px";
-    wrapper.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
-    wrapper.className = "widget-item";
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
-      
-    // Header Bar
-    const headerBar = document.createElement('div');
-    headerBar.className = "sidebar__title";
-    headerBar.style.cursor = "move";
-    headerBar.style.position = "relative";
-    headerBar.style.padding = "5px 10px";
-    // Left: Dark mode toggle
-    const headerLeft = document.createElement('span');
-    headerLeft.className = "me-2";
+
+    // Header
+    const header = document.createElement('div');
+    header.className = "sway-header";
+    // Title
+    const headerLeftDiv = document.createElement('div');
+    headerLeftDiv.className = "sway-titlebar";
+    // Dark mode toggle
     const nightToggle = document.createElement('input');
     nightToggle.type = "checkbox";
     nightToggle.id = "dark-toggle";
-    nightToggle.style.marginRight = "5px";
+    nightToggle.style.marginRight = "8px";
     nightToggle.addEventListener('change', toggleTheme);
-    headerLeft.appendChild(nightToggle);
-    headerLeft.insertAdjacentText('beforeend', " Dark");
-    headerBar.appendChild(headerLeft);
-    // Right: Up, Down, Close buttons
-    const headerRight = document.createElement('span');
-    headerRight.style.position = "absolute";
-    headerRight.style.right = "10px";
+
+    // Let's place the toggle in a sub-container
+    const toggleContainer = document.createElement('div');
+    toggleContainer.style.display = "flex";
+    toggleContainer.style.alignItems = "center";
+    toggleContainer.style.gap = "4px";
+    toggleContainer.appendChild(nightToggle);
+    const darkLbl = document.createElement('span');
+    darkLbl.textContent = "Dark";
+    darkLbl.style.fontSize = "12px";
+    darkLbl.style.color = "#6b7280";
+    toggleContainer.appendChild(darkLbl);
+
+    // Put the toggle on the left
+    headerLeftDiv.appendChild(toggleContainer);
+
+    // Right side: up/down/close
+    const headerBtnsDiv = document.createElement('div');
+    headerBtnsDiv.className = "sway-header-buttons";
+
     const upBtn = document.createElement('button');
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
-    upBtn.className = "btn btn-xs";
-    upBtn.style.marginRight = "5px";
-    upBtn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
-    headerRight.appendChild(upBtn);
+    upBtn.className = "sway-btn-xs sway-btn-outline";
+    upBtn.addEventListener('click', function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    headerBtnsDiv.appendChild(upBtn);
+
     const downBtn = document.createElement('button');
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
-    downBtn.className = "btn btn-xs";
-    downBtn.style.marginRight = "5px";
-    downBtn.addEventListener('click', function() { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
-    headerRight.appendChild(downBtn);
+    downBtn.className = "sway-btn-xs sway-btn-outline";
+    downBtn.addEventListener('click', function() {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    });
+    headerBtnsDiv.appendChild(downBtn);
+
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "×";
     closeBtn.title = "Close MultiTool Beast";
-    closeBtn.className = "btn btn-xs btn-danger";
+    closeBtn.className = "sway-btn-xs sway-btn-danger";
     closeBtn.addEventListener('click', function() {
       wrapper.style.display = "none";
       openBtn.style.display = "block";
       localStorage.setItem("multitool_open", "false");
     });
-    headerRight.appendChild(closeBtn);
-    headerBar.appendChild(headerRight);
-    wrapper.appendChild(headerBar);
-      
-    // Title Section
-    const titleSection = document.createElement('div');
-    titleSection.className = "text-center p-2";
-    const titleIcon = document.createElement('img');
-    titleIcon.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
-    titleIcon.style.width = "32px";
-    titleIcon.style.height = "32px";
-    titleIcon.className = "me-2";
-    const titleText = document.createElement('span');
-    titleText.textContent = "MultiTool Beast";
-    titleText.className = "fw-bold";
-    titleSection.appendChild(titleIcon);
-    titleSection.appendChild(titleText);
-    wrapper.appendChild(titleSection);
-      
-    // Tabs Navigation
-    const tabsNav = document.createElement('ul');
-    tabsNav.className = "nav nav-tabs";
-    // Profile Tab
+    headerBtnsDiv.appendChild(closeBtn);
+
+    // Put them in the header
+    header.appendChild(headerLeftDiv);
+    header.appendChild(headerBtnsDiv);
+    wrapper.appendChild(header);
+
+    // Title bar section (below the toggles)
+    const titleBar2 = document.createElement('div');
+    titleBar2.className = "sway-titlebar";
+    titleBar2.style.marginTop = "8px";
+    const iconImg = document.createElement('img');
+    iconImg.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
+    iconImg.style.width = "28px";
+    iconImg.style.height = "28px";
+    iconImg.style.borderRadius = "50%";
+    const titleTxt = document.createElement('span');
+    titleTxt.textContent = "MultiTool Beast";
+    titleTxt.style.fontWeight = "600";
+    titleTxt.style.marginLeft = "8px";
+    titleBar2.appendChild(iconImg);
+    titleBar2.appendChild(titleTxt);
+    header.appendChild(titleBar2);
+
+    // Tabs
+    const tabsUL = document.createElement('ul');
+    tabsUL.className = "sway-tabs";
+    // Profile
     const liProfile = document.createElement('li');
-    liProfile.className = "multitool-tab-item active";
     liProfile.id = "tab-btn-profile";
-    const aProfile = document.createElement('a');
-    aProfile.href = "#";
-    aProfile.innerHTML = personIconSVG + " Profile";
-    aProfile.addEventListener('click', function(e) { e.preventDefault(); showTab('profile'); });
-    liProfile.appendChild(aProfile);
-    tabsNav.appendChild(liProfile);
-    // Pinned Tab
-    const liPinned = document.createElement('li');
-    liPinned.className = "multitool-tab-item";
-    liPinned.id = "tab-btn-pinned";
-    const aPinned = document.createElement('a');
-    aPinned.href = "#";
-    aPinned.innerHTML = pinIconSVG + " Pinned";
-    aPinned.addEventListener('click', function(e) { e.preventDefault(); showTab('pinned'); });
-    liPinned.appendChild(aPinned);
-    tabsNav.appendChild(liPinned);
-    wrapper.appendChild(tabsNav);
-      
-    // Tab Content: Profile
-    const tabContentProfile = document.createElement('div');
-    tabContentProfile.id = "tab-content-profile";
-    tabContentProfile.className = "multitool-tab-content";
-    tabContentProfile.style.display = "block";
-    const profileContentDiv = document.createElement('div');
-    profileContentDiv.className = "p-2";
-    // Top row: Copy Selected and Slack/JIRA toggle
-    const topRowDiv = document.createElement('div');
-    topRowDiv.className = "d-flex justify-content-between mb-2";
-    const copyAllBtn = document.createElement('button');
-    copyAllBtn.id = "copy-all-selected-btn";
-    copyAllBtn.textContent = "Copy Selected";
-    copyAllBtn.className = "btn btn-xs btn-info";
-    copyAllBtn.addEventListener('click', copyAllSelected);
-    topRowDiv.appendChild(copyAllBtn);
-    const formatGroup = document.createElement('div');
-    formatGroup.className = "btn-group";
-    const slackBtn = document.createElement('button');
-    slackBtn.id = "format-slack-btn";
-    slackBtn.textContent = "Slack";
-    slackBtn.type = "button";
-    slackBtn.className = "btn btn-xs btn-outline-secondary active";
-    slackBtn.addEventListener('click', function() { setFormat('slack'); });
-    const jiraBtn = document.createElement('button');
-    jiraBtn.id = "format-jira-btn";
-    jiraBtn.textContent = "JIRA";
-    jiraBtn.type = "button";
-    jiraBtn.className = "btn btn-xs btn-outline-secondary";
-    jiraBtn.addEventListener('click', function() { setFormat('jira'); });
-    formatGroup.appendChild(slackBtn);
-    formatGroup.appendChild(jiraBtn);
-    topRowDiv.appendChild(formatGroup);
-    profileContentDiv.appendChild(topRowDiv);
-    // Summary checkbox
-    const summaryDiv = document.createElement('div');
-    summaryDiv.className = "form-check mb-2";
-    const sumCheck = document.createElement('input');
-    sumCheck.type = "checkbox";
-    sumCheck.id = "include-summary";
-    sumCheck.className = "form-check-input";
-    const sumLbl = document.createElement('label');
-    sumLbl.htmlFor = "include-summary";
-    sumLbl.className = "form-check-label";
-    sumLbl.textContent = " Include Summary";
-    summaryDiv.appendChild(sumCheck);
-    summaryDiv.appendChild(sumLbl);
-    profileContentDiv.appendChild(summaryDiv);
-    // Container for profile fields
-    const profileFieldsContainer = document.createElement('div');
-    profileFieldsContainer.id = "profile-fields-container";
-    profileContentDiv.appendChild(profileFieldsContainer);
-    populateProfileTab(profileFieldsContainer);
-    tabContentProfile.appendChild(profileContentDiv);
-    wrapper.appendChild(tabContentProfile);
-      
-    // Tab Content: Pinned
-    const tabContentPinned = document.createElement('div');
-    tabContentPinned.id = "tab-content-pinned";
-    tabContentPinned.className = "multitool-tab-content";
-    tabContentPinned.style.display = "none";
-    const pinnedContentDiv = document.createElement('div');
-    pinnedContentDiv.className = "p-2";
-    pinnedContentDiv.innerHTML = '<strong>Quick Access Grid:</strong><br>';
-    pinnedContentDiv.appendChild(buildPinnedTabContent());
-    tabContentPinned.appendChild(pinnedContentDiv);
-    wrapper.appendChild(tabContentPinned);
-      
-    // Draggable handle (a small button above the header)
-    const dragHandleBtn = document.createElement('button');
-    dragHandleBtn.innerHTML = "✋";
-    dragHandleBtn.className = "btn btn-xs btn-outline-secondary";
-    dragHandleBtn.style.position = "absolute";
-    dragHandleBtn.style.top = "-20px";
-    dragHandleBtn.style.left = "50%";
-    dragHandleBtn.style.transform = "translateX(-50%)";
-    dragHandleBtn.style.cursor = "move";
-    wrapper.appendChild(dragHandleBtn);
-    dragHandleBtn.addEventListener("mousedown", function(e) {
+    liProfile.className = "sway-tab active";
+    liProfile.innerHTML = `${personIconSVG} <span style="margin-left:4px;">Profile</span>`;
+    liProfile.addEventListener('click', function(e) {
       e.preventDefault();
-      let posX = e.clientX, posY = e.clientY;
+      showTab('profile');
+    });
+    tabsUL.appendChild(liProfile);
+    // Pinned
+    const liPinned = document.createElement('li');
+    liPinned.id = "tab-btn-pinned";
+    liPinned.className = "sway-tab";
+    liPinned.innerHTML = `${pinIconSVG} <span style="margin-left:4px;">Pinned</span>`;
+    liPinned.addEventListener('click', function(e) {
+      e.preventDefault();
+      showTab('pinned');
+    });
+    tabsUL.appendChild(liPinned);
+    wrapper.appendChild(tabsUL);
+
+    // Content: Profile
+    const tabProfile = document.createElement('div');
+    tabProfile.id = "tab-content-profile";
+    tabProfile.style.display = "block";
+    tabProfile.className = "sway-content";
+    const profileContainer = document.createElement('div');
+    profileContainer.id = "profile-fields-container";
+    tabProfile.appendChild(profileContainer);
+    wrapper.appendChild(tabProfile);
+
+    // Populate profile
+    populateProfileTab(profileContainer);
+
+    // Content: Pinned
+    const tabPinned = document.createElement('div');
+    tabPinned.id = "tab-content-pinned";
+    tabPinned.className = "sway-content";
+    tabPinned.style.display = "none";
+    const pinnedGrid = buildPinnedTabContent();
+    tabPinned.appendChild(pinnedGrid);
+    wrapper.appendChild(tabPinned);
+
+    // Draggable handle
+    const dragHandle = document.createElement('button');
+    dragHandle.className = "sway-handle sway-btn-xs sway-btn-outline";
+    dragHandle.textContent = "✋";
+    wrapper.appendChild(dragHandle);
+
+    dragHandle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      let posX = e.clientX;
+      let posY = e.clientY;
       function dragMove(e2) {
         e2.preventDefault();
         let deltaX = posX - e2.clientX;
@@ -600,29 +707,29 @@
         wrapper.style.left = (wrapper.offsetLeft - deltaX) + "px";
       }
       function closeDrag() {
-        document.removeEventListener("mousemove", dragMove);
-        document.removeEventListener("mouseup", closeDrag);
+        document.removeEventListener('mousemove', dragMove);
+        document.removeEventListener('mouseup', closeDrag);
         localStorage.setItem("multitool_position", JSON.stringify({
           top: wrapper.style.top,
           left: wrapper.style.left
         }));
       }
-      document.addEventListener("mousemove", dragMove);
-      document.addEventListener("mouseup", closeDrag);
+      document.addEventListener('mousemove', dragMove);
+      document.addEventListener('mouseup', closeDrag);
     });
-      
-    // Show the Profile tab by default
+
+    // Show "Profile" tab by default
     showTab('profile');
     initTheme();
-    console.log("[MultiTool Beast] Loaded with Freshdesk native CSS classes.");
-      
+    console.log("[MultiTool Beast] Sway style loaded.");
+
     document.body.appendChild(wrapper);
     window._multitoolWrapper = wrapper;
   }
 
-  /***********************************************
-   * Auto-update on URL change (every 3 seconds)
-   ***********************************************/
+  /***************************************************
+   * 10) Auto-update on URL change (every 3 seconds)
+   ***************************************************/
   setInterval(function() {
     const newId = extractTicketId();
     if (newId && newId !== currentTicketId) {
@@ -634,26 +741,13 @@
       }
     }
   }, 3000);
-    
-  /***********************************************
-   * Open Button – a tab-style button fixed at bottom-right
-   ***********************************************/
+
+  /***************************************************
+   * 11) The open button (Sway style) fixed bottom-right
+   ***************************************************/
   const openBtn = document.createElement('button');
-  openBtn.style.position = "fixed";
-  openBtn.style.bottom = "0";
-  openBtn.style.right = "0";
-  openBtn.style.zIndex = "10000";
-  openBtn.style.borderTopLeftRadius = "0";
-  openBtn.style.borderTopRightRadius = "0";
-  openBtn.style.borderBottomLeftRadius = "4px";
-  openBtn.style.borderBottomRightRadius = "4px";
-  openBtn.style.padding = "5px";
-  openBtn.style.backgroundColor = "#fff";
-  openBtn.style.border = "1px solid #ccc";
-  openBtn.style.boxShadow = "0 -2px 4px rgba(0,0,0,0.2)";
-  openBtn.title = "Open MultiTool Beast";
-  // Tealium icon only (no text)
-  openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:32px;height:32px;">`;
+  openBtn.id = "sway-open-btn";
+  openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png">`;
   openBtn.style.display = (localStorage.getItem("multitool_open") === "true") ? "none" : "block";
   openBtn.addEventListener('click', function() {
     if (window._multitoolWrapper) {
@@ -668,14 +762,16 @@
     }
   });
   document.body.appendChild(openBtn);
-    
-  /***********************************************
-   * Initialize on DOM ready
-   ***********************************************/
+
+  /***************************************************
+   * 12) Initialize on DOM ready
+   ***************************************************/
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { setTimeout(initTool, 3000); });
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(initTool, 3000);
+    });
   } else {
     setTimeout(initTool, 3000);
   }
-    
+
 })();
