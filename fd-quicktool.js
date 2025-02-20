@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.8
+// @version      2.9
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -63,18 +63,18 @@
     const style = document.createElement('style');
     style.id = "multitool-beast-css";
     style.innerHTML = `
-/* Pastel "Material-ish" Panel with cute separation */
+/* Pastel Material Panel Styles */
 
 /* Color variables */
 :root {
   --light-panel-bg: #fffaf5;  
   --light-panel-fg: #2f2f2f;
   --light-panel-border: #d1ccc9;
-
+  
   --dark-panel-bg: #1e293b;
   --dark-panel-fg: #e2e8f0;
   --dark-panel-border: #475569;
-
+  
   --tab-bg: #e8f1fa;
   --tab-border: #b3d4f0; 
   --tab-fg: #14425c;    
@@ -95,13 +95,14 @@ body.dark-mode-override {
   --panel-border: var(--dark-panel-border);
 }
 
+/* Main Panel – fixed height; only width is resizable */
 #multitool-beast-wrapper {
   position: fixed;
   bottom: 80px;
   right: 20px;
   width: 380px;
   min-width: 280px;
-  min-height: 220px;
+  height: 220px;
   background-color: var(--panel-bg);
   color: var(--panel-fg);
   border: 2px solid var(--panel-border);
@@ -109,7 +110,7 @@ body.dark-mode-override {
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
   z-index: 999999;
   display: none;
-  resize: both;
+  resize: horizontal;
   overflow: auto;
   transition: box-shadow 0.2s;
 }
@@ -136,7 +137,7 @@ body.dark-mode-override {
   pointer-events: all;
 }
 
-/* Top bar with bottom border */
+/* Top Bar: separation by bottom border */
 .mtb-top-bar {
   display: flex;
   justify-content: space-between;
@@ -146,8 +147,7 @@ body.dark-mode-override {
   margin-bottom: 4px;
 }
 
-/* Top bar containers:
-   Left: dark mode toggle; Right: circle buttons */
+/* Top bar containers */
 .mtb-top-bar-left,
 .mtb-top-bar-right {
   display: flex;
@@ -241,15 +241,26 @@ body.dark-mode-override {
   transform: translateX(22px);
 }
 
-/* Header (logo + title) with bottom border */
+/* Header with cool bottom gradient */
 .mtb-header {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 8px 12px;
   gap: 8px;
+  position: relative;
   border-bottom: 1px solid var(--panel-border);
   margin-bottom: 4px;
+  overflow: hidden;
+}
+.mtb-header::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  background: linear-gradient(to bottom, transparent, var(--tab-border));
 }
 .mtb-logo {
   width: 28px;
@@ -262,7 +273,7 @@ body.dark-mode-override {
   margin: 0;
 }
 
-/* Main content area (tabs + tab content) */
+/* Main content area */
 .mtb-content {
   padding: 8px 12px;
 }
@@ -364,7 +375,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* Recent ticket links */
+/* Recent ticket links – cute style */
 .recent-ticket {
   display: inline-block;
   background-color: #f0f8ff;
@@ -585,7 +596,7 @@ body.dark-mode-override {
     });
   }
 
-  // Create a field row with styled value and bottom border
+  // Create a field row with styled value
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow";
@@ -644,7 +655,7 @@ body.dark-mode-override {
     secProfile.appendChild(carrRow);
     secProfile.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-    // Copy Account/Profile and Copy Selected buttons side by side
+    // Copy buttons (side by side)
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
     copyAccBtn.className = "sway-btn-text";
@@ -656,7 +667,6 @@ body.dark-mode-override {
         setTimeout(function() { copyAccBtn.textContent = "Copy Account/Profile"; }, 2000);
       });
     });
-
     const copyAllBtn = document.createElement('button');
     copyAllBtn.id = "copy-all-selected-btn";
     copyAllBtn.className = "sway-btn-text";
@@ -672,7 +682,7 @@ body.dark-mode-override {
     copyRow.appendChild(copyAllBtn);
     secProfile.appendChild(copyRow);
 
-    // Include Summary checkbox below the copy buttons
+    // Include Summary checkbox
     const summaryDiv = document.createElement('div');
     summaryDiv.style.marginTop = '8px';
     const sumCheck = document.createElement('input');
@@ -685,7 +695,7 @@ body.dark-mode-override {
 
     container.appendChild(secProfile);
 
-    // Section for recent tickets with cuter style
+    // Section for Recent Tickets with cute styling
     const secRecent = document.createElement('div');
     secRecent.className = "mtb-section";
     const rHead = document.createElement('div');
@@ -702,7 +712,6 @@ body.dark-mode-override {
         tDiv.style.display = "flex";
         tDiv.style.alignItems = "center";
         tDiv.style.gap = "8px";
-        // Use the new "recent-ticket" style on the link
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
@@ -736,62 +745,34 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * 6) Pinned Tab
+   * 6) Pinned Tab – Single Jira Button
    ***************************************************/
   function buildPinnedTabContent(container) {
     container.innerHTML = "";
     const sec = document.createElement('div');
     sec.className = "mtb-section";
-    sec.style.display = "flex";
-    sec.style.flexWrap = "wrap";
-    sec.style.gap = "8px";
+    sec.style.textAlign = "center";
 
-    const items = [
-      { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
-      { icon: '🔗', label: 'Website', link: 'https://www.example.com' },
-      { icon: '📊', label: 'Analytics', link: 'https://analytics.google.com' },
-      { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' }
-    ];
+    // Create a single button for Jira
+    const jiraBtn = document.createElement('button');
+    jiraBtn.className = "sway-btn-text";
+    jiraBtn.textContent = "Open Jira Form";
+    jiraBtn.style.margin = "8px auto";
+    jiraBtn.addEventListener('click', openJiraForm);
+    sec.appendChild(jiraBtn);
 
-    items.forEach(function(item) {
-      const card = document.createElement('div');
-      card.style.width = "calc(50% - 4px)";
-      card.style.backgroundColor = "#f7fafc";
-      card.style.border = "1px solid var(--panel-border)";
-      card.style.borderRadius = "6px";
-      card.style.textAlign = "center";
-      card.style.padding = "12px";
-      card.style.cursor = "pointer";
-      card.style.color = "var(--panel-fg)";
-      card.style.transition = "background-color 0.15s, box-shadow 0.15s";
-      card.innerHTML = `
-        <div style="font-size:24px;">${item.icon}</div>
-        <div style="margin-top:6px;font-weight:500;">${item.label}</div>
-      `;
-      card.addEventListener('click', function() {
-        window.open(item.link, '_blank');
-      });
-      card.addEventListener('mouseover', () => {
-        card.style.backgroundColor = "#eef4f8";
-        card.style.boxShadow = "0 2px 6px rgba(0,0,0,0.1)";
-      });
-      card.addEventListener('mouseout', () => {
-        card.style.backgroundColor = "#f7fafc";
-        card.style.boxShadow = "none";
-      });
-      sec.appendChild(card);
-    });
     container.appendChild(sec);
   }
 
   /***************************************************
-   * 7) Settings Tab
+   * 7) Settings Tab – Font Size Slider
    ***************************************************/
   function buildSettingsContent(container) {
     container.innerHTML = "";
     const sec = document.createElement('div');
     sec.className = "mtb-section";
 
+    // Keep box open setting
     const keepOpenDiv = document.createElement('div');
     keepOpenDiv.style.marginBottom = "8px";
     const keepOpenChk = document.createElement('input');
@@ -804,13 +785,60 @@ body.dark-mode-override {
     });
     keepOpenDiv.appendChild(keepOpenChk);
     keepOpenDiv.appendChild(document.createTextNode(" Keep box open by default"));
-
     sec.appendChild(keepOpenDiv);
+
+    // Font size slider
+    const fontSizeDiv = document.createElement('div');
+    fontSizeDiv.style.marginTop = "8px";
+    const fontSizeLabel = document.createElement('label');
+    fontSizeLabel.htmlFor = "fontSizeSlider";
+    fontSizeLabel.textContent = "Font Size: ";
+    const fontSizeValue = document.createElement('span');
+    fontSizeValue.id = "fontSizeValue";
+    // Use stored value or default 14px
+    let storedFontSize = loadPref("mtb_fontSize", 14);
+    fontSizeValue.textContent = storedFontSize;
+    fontSizeLabel.appendChild(fontSizeValue);
+    fontSizeLabel.appendChild(document.createTextNode("px"));
+    const fontSizeSlider = document.createElement('input');
+    fontSizeSlider.type = "range";
+    fontSizeSlider.id = "fontSizeSlider";
+    fontSizeSlider.min = "10";
+    fontSizeSlider.max = "20";
+    fontSizeSlider.value = storedFontSize;
+    fontSizeSlider.style.width = "100%";
+    fontSizeSlider.addEventListener('input', function() {
+      const newSize = fontSizeSlider.value;
+      fontSizeValue.textContent = newSize;
+      document.getElementById("multitool-beast-wrapper").style.fontSize = newSize + "px";
+      savePref("mtb_fontSize", newSize);
+    });
+    fontSizeDiv.appendChild(fontSizeLabel);
+    fontSizeDiv.appendChild(fontSizeSlider);
+    sec.appendChild(fontSizeDiv);
+
     container.appendChild(sec);
   }
 
   /***************************************************
-   * 8) Main init
+   * 8) Open Jira Form (Pre-fill Data)
+   ***************************************************/
+  function openJiraForm() {
+    // Example Jira URL – replace with your actual Jira instance URL
+    const jiraBaseURL = "https://jira.example.com/secure/CreateIssue!default.jspa";
+    // Gather some data from the Profile fields
+    const ticketId = extractTicketId();
+    const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
+    const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
+    // Build prefill parameters – adjust parameter names as needed by your Jira setup
+    const summary = encodeURIComponent("Freshdesk Ticket " + ticketId);
+    const description = encodeURIComponent("Account: " + accountVal + "\nProfile: " + profileVal);
+    const jiraURL = jiraBaseURL + "?summary=" + summary + "&description=" + description;
+    window.open(jiraURL, '_blank');
+  }
+
+  /***************************************************
+   * 9) Main init
    ***************************************************/
   function initTool() {
     if (!isTicketPage()) return;
@@ -821,6 +849,9 @@ body.dark-mode-override {
 
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
+    // Set initial font size if stored
+    let initFontSize = loadPref("mtb_fontSize", 14);
+    wrapper.style.fontSize = initFontSize + "px";
 
     // Restore saved position if available
     const pos = loadPref("boxPosition", null);
@@ -842,11 +873,10 @@ body.dark-mode-override {
     dragHandle.className = "drag-handle";
     wrapper.appendChild(dragHandle);
 
-    // Top bar with separation
+    // Top Bar
     const topBar = document.createElement('div');
     topBar.className = "mtb-top-bar";
-
-    // Left container: Dark mode toggle
+    // Left: Dark mode toggle
     const topBarLeft = document.createElement('div');
     topBarLeft.className = "mtb-top-bar-left";
     const toggleWrapper = document.createElement('div');
@@ -873,7 +903,7 @@ body.dark-mode-override {
     toggleWrapper.appendChild(toggleLabel);
     topBarLeft.appendChild(toggleWrapper);
 
-    // Right container: Up, Down, Close buttons
+    // Right: Up, Down, Close buttons
     const topBarRight = document.createElement('div');
     topBarRight.className = "mtb-top-bar-right";
     const upBtn = document.createElement('button');
@@ -900,12 +930,12 @@ body.dark-mode-override {
     topBarRight.appendChild(downBtn);
     topBarRight.appendChild(closeBtn);
 
-    // Assemble top bar
+    // Assemble Top Bar
     topBar.appendChild(topBarLeft);
     topBar.appendChild(topBarRight);
     wrapper.appendChild(topBar);
 
-    // Header (logo + title) with separation
+    // Header with cool gradient
     const header = document.createElement('div');
     header.className = "mtb-header";
     const tealiumLogo = document.createElement('img');
@@ -918,11 +948,9 @@ body.dark-mode-override {
     header.appendChild(h3);
     wrapper.appendChild(header);
 
-    // Main content area (tabs + content)
+    // Main Content Area
     const content = document.createElement('div');
     content.className = "mtb-content";
-
-    // Tabs row
     const tabsUL = document.createElement('ul');
     tabsUL.className = "mtb-tabs";
     const profileTab = document.createElement('li');
@@ -962,12 +990,12 @@ body.dark-mode-override {
     wrapper.appendChild(content);
     document.body.appendChild(wrapper);
 
-    // Populate tabs
+    // Populate Tabs
     populateProfileTab(profileContent);
     buildPinnedTabContent(pinnedContent);
     buildSettingsContent(settingsContent);
 
-    // Drag events
+    // Drag Events for the drag handle
     let isDragging = false;
     dragHandle.addEventListener('mousedown', function(e) {
       e.preventDefault();
@@ -1002,7 +1030,24 @@ body.dark-mode-override {
     showTab('profile');
   }
 
-  // Update content on ticket change
+  /***************************************************
+   * 10) Open Jira Form – Pre-fill Data into Jira URL
+   ***************************************************/
+  function openJiraForm() {
+    // Replace with your Jira instance URL
+    const jiraBaseURL = "https://jira.example.com/secure/CreateIssue!default.jspa";
+    const ticketId = extractTicketId() || "";
+    const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
+    const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
+    const summary = encodeURIComponent("Freshdesk Ticket " + ticketId);
+    const description = encodeURIComponent("Account: " + accountVal + "\nProfile: " + profileVal);
+    const jiraURL = jiraBaseURL + "?summary=" + summary + "&description=" + description;
+    window.open(jiraURL, '_blank');
+  }
+
+  /***************************************************
+   * 11) Update content if ticket changes
+   ***************************************************/
   let currentId = extractTicketId();
   setInterval(function() {
     const newId = extractTicketId();
@@ -1016,7 +1061,7 @@ body.dark-mode-override {
   }, 3000);
 
   /***************************************************
-   * 9) Open Button
+   * 12) Open Button
    ***************************************************/
   const openBtn = document.createElement('button');
   openBtn.id = "sway-open-btn";
@@ -1041,7 +1086,7 @@ body.dark-mode-override {
   document.body.appendChild(openBtn);
 
   /***************************************************
-   * 10) Initialize on DOM ready
+   * 13) Initialize on DOM ready
    ***************************************************/
   if (!isTicketPage()) return;
   if (document.readyState === 'loading') {
