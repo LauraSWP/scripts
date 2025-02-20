@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.75
+// @version      1.76
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,20 +13,42 @@
 (function() {
   'use strict';
 
-  // Load Tailwind CSS from CDN if not already loaded
+  /***********************************************
+   * Load Tailwind CSS via CDN if not present
+   ***********************************************/
   if (!document.getElementById('tailwindcss-script')) {
-    const script = document.createElement('script');
-    script.id = 'tailwindcss-script';
-    script.src = 'https://cdn.tailwindcss.com';
-    // Enable dark mode via class (so we can toggle dark mode by adding/removing the "dark" class on <html>)
-    script.onload = () => {
+    const twScript = document.createElement('script');
+    twScript.id = 'tailwindcss-script';
+    twScript.src = 'https://cdn.tailwindcss.com';
+    twScript.onload = () => {
       tailwind.config = { darkMode: 'class' };
     };
-    document.head.appendChild(script);
+    document.head.appendChild(twScript);
   }
 
   /***********************************************
-   * 1) Inline SVG icons (person, pin, copy)
+   * Utility: showTab function (hoisted)
+   ***********************************************/
+  function showTab(which) {
+    const allTabs = document.querySelectorAll('.multitool-tab');
+    const allContents = document.querySelectorAll('.multitool-tab-content');
+    allTabs.forEach(t => t.classList.remove('active'));
+    allContents.forEach(c => c.classList.remove('active'));
+    if (which === 'profile') {
+      const tab = document.getElementById('tab-btn-profile');
+      const content = document.getElementById('tab-content-profile');
+      if (tab) tab.classList.add('active');
+      if (content) content.classList.add('active');
+    } else {
+      const tab = document.getElementById('tab-btn-pinned');
+      const content = document.getElementById('tab-content-pinned');
+      if (tab) tab.classList.add('active');
+      if (content) content.classList.add('active');
+    }
+  }
+
+  /***********************************************
+   * Inline SVG icons
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="inline-block" viewBox="0 0 16 16">
@@ -44,9 +66,8 @@
 </svg>`;
 
   /***********************************************
-   * 2) Dark Mode via Tailwind
+   * Dark Mode via Tailwind (controlled by toggling "dark" on <html>)
    ***********************************************/
-  // We toggle the "dark" class on the <html> element.
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
     if (stored === 'theme-dark') {
@@ -66,7 +87,7 @@
   }
 
   /***********************************************
-   * 3) Utility Functions
+   * Extract Ticket ID (handles /a/tickets/ too)
    ***********************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/(?:\/a)?\/tickets\/(\d+)/);
@@ -74,6 +95,9 @@
   }
   let currentTicketId = extractTicketId();
 
+  /***********************************************
+   * Helper Functions: getFieldValue, getSummary, getRecentTickets, fetchCARR
+   ***********************************************/
   function getFieldValue(el) {
     if (!el) return "";
     let val = el.value || el.getAttribute('value') || el.getAttribute('placeholder') || "";
@@ -166,24 +190,79 @@
   }
 
   /***********************************************
-   * 4) Build UI Elements using Tailwind CSS
+   * Slack/JIRA Toggle & "Copy Selected"
    ***********************************************/
-  // Create a menu item row using Tailwind classes
+  let formatMode = 'slack';
+  function setFormat(mode) {
+    formatMode = mode;
+    const slackBtn = document.getElementById('format-slack-btn');
+    const jiraBtn = document.getElementById('format-jira-btn');
+    if (!slackBtn || !jiraBtn) return;
+    if (mode === 'slack') {
+      slackBtn.classList.add('active');
+      jiraBtn.classList.remove('active');
+    } else {
+      slackBtn.classList.remove('active');
+      jiraBtn.classList.add('active');
+    }
+  }
+  function copyAllSelected() {
+    let copyText = "";
+    document.querySelectorAll('.fieldRow').forEach(row => {
+      const chk = row.querySelector('.field-selector');
+      if (chk && chk.checked) {
+        const lblSpan = row.querySelector('span');
+        const valEl = row.querySelector('.bg-light');
+        if (lblSpan && valEl) {
+          let labelText = lblSpan.textContent.replace(/:\s*$/, "");
+          let valueText = valEl.textContent.trim();
+          if (labelText.toLowerCase() === "ticket id") {
+            const numericId = valueText.replace("#", "");
+            const link = window.location.origin + "/a/tickets/" + numericId;
+            if (formatMode === 'jira') {
+              labelText = `**${labelText}**`;
+              valueText = `[#${numericId}](${link})`;
+            } else {
+              valueText = `#${numericId} - ${link}`;
+            }
+          } else if (formatMode === 'jira') {
+            labelText = `**${labelText}**`;
+          }
+          copyText += `${labelText}: ${valueText}\n`;
+        }
+      }
+    });
+    const summaryCheck = document.getElementById('include-summary');
+    if (summaryCheck && summaryCheck.checked) {
+      const summaryText = getSummary();
+      if (summaryText) {
+        if (formatMode === 'jira') {
+          copyText += `\n**Summary**:\n${summaryText}\n`;
+        } else {
+          copyText += `\nSummary:\n${summaryText}\n`;
+        }
+      }
+    }
+    const copyBtn = document.getElementById('copy-all-selected-btn');
+    navigator.clipboard.writeText(copyText).then(() => {
+      if (copyBtn) {
+        copyBtn.textContent = "Copied Selected!";
+        setTimeout(() => { copyBtn.textContent = "Copy Selected"; }, 2000);
+      }
+    });
+  }
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
-    row.className = "mb-2 pb-2 border-b border-gray-300 dark:border-gray-600 flex items-center";
-    
+    row.className = "mb-2 pb-2 border-b border-gray-300 dark:border-gray-600 flex items-center fieldRow";
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = true;
-    check.className = "mr-2";
+    check.className = "mr-2 field-selector";
     row.appendChild(check);
-    
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
     lbl.className = "font-bold";
     row.appendChild(lbl);
-    
     const finalVal = valueText || "N/A";
     if (labelText.toLowerCase() === "relevant urls" && finalVal.startsWith("http")) {
       const link = document.createElement('a');
@@ -200,7 +279,7 @@
     }
     if (withCopy) {
       const btn = document.createElement('button');
-      btn.className = "ml-2 bg-gray-300 dark:bg-gray-600 px-2 py-1 rounded text-sm";
+      btn.className = "ml-2 bg-gray-300 dark:bg-gray-600 px-2 py-1 rounded text-sm copy-btn";
       btn.innerHTML = copyIconSVG;
       btn.title = "Copy";
       btn.addEventListener('click', () => {
@@ -214,6 +293,9 @@
     return row;
   }
 
+  /***********************************************
+   * Build Pinned Tab Content
+   ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
     grid.id = "pinned-grid";
@@ -228,21 +310,21 @@
       const btn = document.createElement('div');
       btn.className = "p-2 bg-gray-100 dark:bg-gray-700 rounded text-center cursor-pointer border border-gray-300 dark:border-gray-600";
       btn.addEventListener('click', () => window.open(item.link, '_blank'));
-      
       const iconSpan = document.createElement('div');
       iconSpan.className = "text-xl mb-1";
       iconSpan.textContent = item.icon;
       btn.appendChild(iconSpan);
-      
       const labelSpan = document.createElement('div');
       labelSpan.textContent = item.label;
       btn.appendChild(labelSpan);
-      
       grid.appendChild(btn);
     });
     return grid;
   }
 
+  /***********************************************
+   * populateProfileTab
+   ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
     const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
@@ -307,6 +389,7 @@
       noDiv.textContent = "No tickets in the last 7 days";
       container.appendChild(noDiv);
     }
+    
     fetchCARR(cVal => {
       const vEl = carrRow.querySelector('.bg-light');
       if (vEl) vEl.textContent = cVal;
@@ -314,18 +397,18 @@
   }
 
   /***********************************************
-   * 5) Build Entire Tool Layout using Tailwind
+   * Build Entire Tool Layout using Tailwind
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.40.0) with Tailwind...");
+    console.log("[MultiTool Beast] Initializing (v1.40.1) with Tailwind CSS...");
     initTheme();
     const isOpen = false;
 
-    // Open button (bottom-right)
+    // Open button (fixed bottom-right)
     const openBtn = document.createElement('button');
     openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="w-5 h-5">`;
     openBtn.className = "fixed bottom-0 right-0 z-50 bg-blue-600 text-white border border-blue-800 rounded px-3 py-1";
@@ -354,7 +437,7 @@
         if (pos.left) wrapper.style.left = pos.left;
       } catch(e){}
     } else {
-      wrapper.className = "fixed bottom-20 right-5 z-50";
+      wrapper.className += " fixed bottom-20 right-5 z-50";
     }
     wrapper.className += " fixed z-50 w-80 min-w-[280px] min-h-[200px] resize overflow-auto bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200";
     wrapper.style.display = isOpen ? 'block' : 'none';
@@ -439,7 +522,8 @@
     const tabProfile = document.createElement('div');
     tabProfile.className = "p-3 multitool-tab-content";
     tabProfile.id = "tab-content-profile";
-
+    const cardBodyProfile = document.createElement('div');
+    cardBodyProfile.className = "p-3";
     // Row: Copy Selected + Slack/JIRA toggle
     const topBodyRowProfile = document.createElement('div');
     topBodyRowProfile.className = "flex items-center mb-2";
@@ -467,8 +551,7 @@
     formatGroup.appendChild(slackBtn);
     formatGroup.appendChild(jiraBtn);
     topBodyRowProfile.appendChild(formatGroup);
-    tabProfile.appendChild(topBodyRowProfile);
-
+    cardBodyProfile.appendChild(topBodyRowProfile);
     // "Include Summary" row
     const summaryRow = document.createElement('div');
     summaryRow.className = "mb-2";
@@ -481,15 +564,14 @@
     sumLbl.htmlFor = "include-summary";
     summaryRow.appendChild(sumCheck);
     summaryRow.appendChild(sumLbl);
-    tabProfile.appendChild(summaryRow);
-
+    cardBodyProfile.appendChild(summaryRow);
     // Container for Profile fields
     const profileFieldsContainer = document.createElement('div');
     profileFieldsContainer.id = "profile-fields-container";
-    tabProfile.appendChild(profileFieldsContainer);
+    cardBodyProfile.appendChild(profileFieldsContainer);
     populateProfileTab(profileFieldsContainer);
     wrapper.appendChild(tabProfile);
-
+    
     // Pinned Tab Content
     const tabPinned = document.createElement('div');
     tabPinned.className = "p-3 multitool-tab-content";
@@ -500,9 +582,9 @@
     pinnedBody.appendChild(buildPinnedTabContent());
     tabPinned.appendChild(pinnedBody);
     wrapper.appendChild(tabPinned);
-
+    
     document.body.appendChild(wrapper);
-
+    
     // Draggable handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
@@ -532,15 +614,15 @@
         }));
       }
     };
-
+    
     setFormat('slack');
     showTab('profile');
     initTheme();
-    console.log("[MultiTool Beast] Loaded (v1.40.0) with Tailwind CSS.");
+    console.log("[MultiTool Beast] Loaded (v1.40.1) with Tailwind CSS.");
   }
 
   /***********************************************
-   * 6) Auto-update on URL change
+   * Auto-update on URL change
    ***********************************************/
   setInterval(() => {
     const newId = extractTicketId();
@@ -553,14 +635,13 @@
       }
     }
   }, 3000);
-
+  
   /***********************************************
-   * 7) Initialize on DOM ready
+   * Initialize on DOM ready
    ***********************************************/
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(initTool, 3000));
   } else {
     setTimeout(initTool, 3000);
   }
-
 })();
