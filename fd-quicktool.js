@@ -9,7 +9,7 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
-
+ 
 (function() {
   'use strict';
 
