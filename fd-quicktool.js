@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.93
+// @version      1.94
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -159,6 +159,7 @@
       jiraBtn.classList.add('active');
     }
   }
+
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(function(row) {
@@ -239,6 +240,27 @@
     return row;
   }
 
+  /***********************************************
+   * Inline SVG Icons
+   ***********************************************/
+  const personIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+  <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
+</svg>`;
+  const pinIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
+</svg>`;
+  const copyIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
+  <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
+</svg>`;
+
+  /***********************************************
+   * Build Pinned Tab Content (Quick Access Grid)
+   ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
     grid.className = "row";
@@ -246,7 +268,7 @@
       { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
       { icon: '🔗', label: 'Website', link: 'https://www.example.com' },
       { icon: '📊', label: 'Analytics', link: 'https://analytics.google.com' },
-      { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' },
+      { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' }
     ];
     items.forEach(function(item) {
       const col = document.createElement('div');
@@ -265,6 +287,9 @@
     return grid;
   }
 
+  /***********************************************
+   * Populate Profile Tab (Ticket/Field Info)
+   ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
     const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
@@ -368,8 +393,6 @@
     wrapper.className = "widget-item";
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
-      
-    /***** Build UI inside the widget ******/
       
     // Header Bar
     const headerBar = document.createElement('div');
@@ -604,7 +627,7 @@
   openBtn.style.border = "1px solid #ccc";
   openBtn.style.boxShadow = "0 -2px 4px rgba(0,0,0,0.2)";
   openBtn.title = "Open MultiTool Beast";
-  // Tealium icon only (no text)
+  // Tealium icon only
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:32px;height:32px;">`;
   openBtn.style.display = (localStorage.getItem("multitool_open") === "true") ? "none" : "block";
   openBtn.addEventListener('click', function() {
