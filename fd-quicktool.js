@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      3.9
+// @version      4.0
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -13,6 +13,40 @@
 
 (function() {
   'use strict';
+
+  // Domain check: determine if we're on Freshdesk or Jira
+  const isFreshdesk = window.location.hostname.includes("freshdesk.com");
+  const isJira = window.location.hostname.includes("tealium.atlassian.net");
+
+  if (isJira) {
+    console.log("Jira page detected – running Jira-specific tasks only.");
+    // Wait for the Create Issue button to appear and attach a listener.
+    function waitForCreateBtn() {
+      let createBtn = document.getElementById("createGlobalItem");
+      if (createBtn) {
+        createBtn.addEventListener('click', function() {
+          // When the user clicks Create, wait a moment for the modal to open.
+          setTimeout(function() {
+            // Attempt to prefill the Account/Profile field
+            let acctField = document.getElementById("customfield_10652-field");
+            if (acctField) {
+              // Retrieve latest Account/Profile value stored from Freshdesk
+              let latestValue = localStorage.getItem("latest_account_profile") || "";
+              acctField.value = latestValue;
+              console.log("Prefilled Account/Profile with:", latestValue);
+            }
+          }, 2000);
+        });
+      } else {
+        setTimeout(waitForCreateBtn, 1000);
+      }
+    }
+    waitForCreateBtn();
+    return; // Exit – do not run the MultiTool UI on Jira pages.
+  }
+
+  // ----- Freshdesk MultiTool Code Below -----
+  if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
 
   /***************************************************
    * 0) SVG Icons
@@ -96,7 +130,7 @@ body.dark-mode-override {
   --panel-border: var(--dark-panel-border);
 }
 
-/* Main Panel – fixed height of 550px; not resizable, only scrollable */
+/* Main Panel – fixed height of 550px; not resizable */
 #multitool-beast-wrapper {
   position: fixed;
   bottom: 80px;
@@ -137,7 +171,7 @@ body.dark-mode-override {
   pointer-events: all;
 }
 
-/* Top Bar with bottom border */
+/* Top Bar */
 .mtb-top-bar {
   display: flex;
   justify-content: space-between;
@@ -147,8 +181,7 @@ body.dark-mode-override {
   margin-bottom: 4px;
 }
 
-/* Top Bar containers:
-   Left: dark mode toggle; Right: circle buttons */
+/* Top Bar containers */
 .mtb-top-bar-left,
 .mtb-top-bar-right {
   display: flex;
@@ -156,7 +189,7 @@ body.dark-mode-override {
   gap: 8px;
 }
 
-/* Circle buttons for up/down/close */
+/* Circle buttons */
 .circle-btn {
   width: 30px;
   height: 30px;
@@ -191,7 +224,7 @@ body.dark-mode-override {
   background-color: #ffcccc;
 }
 
-/* Theme toggle (in left container) */
+/* Theme toggle (left container) */
 .theme-toggle-wrapper {
   position: relative;
   width: 44px;
@@ -274,7 +307,7 @@ body.dark-mode-override {
   margin: 0;
 }
 
-/* Main Content Area */
+/* Main content area */
 .mtb-content {
   padding: 8px 12px;
 }
@@ -308,12 +341,12 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-/* Hide Tab Content by Default */
+/* Hide tab content */
 .tab-content {
   display: none;
 }
 
-/* Section Blocks */
+/* Section blocks */
 .mtb-section {
   background-color: rgba(0,0,0,0.02);
   border: 1px solid var(--panel-border);
@@ -322,7 +355,7 @@ body.dark-mode-override {
   margin-bottom: 8px;
 }
 
-/* Field Rows with bottom border */
+/* Field rows */
 .fieldRow {
   display: flex;
   align-items: center;
@@ -335,7 +368,7 @@ body.dark-mode-override {
   border-bottom: none;
 }
 
-/* Account Value Styling */
+/* Account value styling */
 .fresh-value {
   background-color: rgba(0,0,0,0.05);
   padding: 2px 4px;
@@ -344,7 +377,7 @@ body.dark-mode-override {
   font-weight: 500;
 }
 
-/* Text-based Copy Buttons */
+/* Text-based copy buttons */
 .sway-btn-text {
   padding: 6px 12px;
   border-radius: 12px;
@@ -360,7 +393,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* Icon-only Copy Buttons */
+/* Icon-only copy buttons */
 .sway-btn-icon {
   background-color: transparent;
   border: 1px solid var(--tab-border);
@@ -376,7 +409,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* Recent Ticket Links – Cuter Style */
+/* Recent ticket links */
 .recent-ticket {
   display: inline-block;
   background-color: #f0f8ff;
@@ -392,7 +425,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-/* Open Button (Floating) */
+/* Open button (floating) */
 #sway-open-btn {
   position: fixed;
   bottom: 0;
@@ -636,7 +669,7 @@ body.dark-mode-override {
     return row;
   }
 
-  // Populate the Profile tab
+  // Populate the Profile tab – also store latest Account/Profile in localStorage for Jira use.
   function populateProfileTab(container) {
     container.innerHTML = "";
 
@@ -644,6 +677,8 @@ body.dark-mode-override {
     const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
+    // Save latest Account/Profile for Jira pre-fill
+    localStorage.setItem("latest_account_profile", accountVal + "/" + profileVal);
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
 
     // Section with main fields
@@ -674,7 +709,6 @@ body.dark-mode-override {
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.style.marginTop = "8px";
     copyAllBtn.addEventListener('click', copyAllSelected);
-
     const copyRow = document.createElement('div');
     copyRow.style.display = "flex";
     copyRow.style.gap = "8px";
@@ -696,7 +730,7 @@ body.dark-mode-override {
 
     container.appendChild(secProfile);
 
-    // Section for Recent Tickets with cuter styling
+    // Section for Recent Tickets
     const secRecent = document.createElement('div');
     secRecent.className = "mtb-section";
     const rHead = document.createElement('div');
@@ -754,7 +788,7 @@ body.dark-mode-override {
     sec.className = "mtb-section";
     sec.style.textAlign = "center";
 
-    // Jira Button – open Jira form with pre-filled data
+    // Jira Button – open Jira Create Issue page with pre-filled data
     const jiraBtn = document.createElement('button');
     jiraBtn.className = "sway-btn-text";
     jiraBtn.textContent = "Open Jira Form";
@@ -821,16 +855,17 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * 8) Open Jira Form – Pre-fill Data
+   * 8) Open Jira Form – Pre-fill Data into Create Issue Page
    ***************************************************/
   function openJiraForm() {
-    const jiraBaseURL = "https://tealium.atlassian.net/jira/software/c/projects/CSI/boards/153";
+    const jiraCreateURL = "https://tealium.atlassian.net/secure/CreateIssue!default.jspa";
     const ticketId = extractTicketId() || "";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
     const summary = encodeURIComponent("Freshdesk Ticket " + ticketId);
     const description = encodeURIComponent("Account: " + accountVal + "\nProfile: " + profileVal);
-    const jiraURL = jiraBaseURL + "?summary=" + summary + "&description=" + description;
+    const customField = encodeURIComponent(accountVal + "/" + profileVal);
+    const jiraURL = jiraCreateURL + "?summary=" + summary + "&description=" + description + "&customfield_10652=" + customField;
     window.open(jiraURL, '_blank');
   }
 
@@ -846,7 +881,6 @@ body.dark-mode-override {
 
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
-    // Set fixed font size if stored
     let initFontSize = loadPref("mtb_fontSize", 14);
     wrapper.style.fontSize = initFontSize + "px";
 
@@ -945,7 +979,7 @@ body.dark-mode-override {
     header.appendChild(h3);
     wrapper.appendChild(header);
 
-    // Main Content Area
+    // Main Content Area with Tabs
     const content = document.createElement('div');
     content.className = "mtb-content";
     const tabsUL = document.createElement('ul');
@@ -986,12 +1020,12 @@ body.dark-mode-override {
     wrapper.appendChild(content);
     document.body.appendChild(wrapper);
 
-    // Populate Tabs
+    // Populate tabs
     populateProfileTab(profileContent);
     buildPinnedTabContent(pinnedContent);
     buildSettingsContent(settingsContent);
 
-    // Drag Events for Drag Handle
+    // Drag events for the drag handle
     let isDragging = false;
     dragHandle.addEventListener('mousedown', function(e) {
       e.preventDefault();
@@ -1027,36 +1061,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * 10) Open Jira Form – Pre-fill Data
-   ***************************************************/
-  function openJiraForm() {
-    const jiraBaseURL = "https://tealium.atlassian.net/jira/software/c/projects/CSI/boards/153";
-    const ticketId = extractTicketId() || "";
-    const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
-    const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
-    const summary = encodeURIComponent("Freshdesk Ticket " + ticketId);
-    const description = encodeURIComponent("Account: " + accountVal + "\nProfile: " + profileVal);
-    const jiraURL = jiraBaseURL + "?summary=" + summary + "&description=" + description;
-    window.open(jiraURL, '_blank');
-  }
-
-  /***************************************************
-   * 11) Update content on ticket change
-   ***************************************************/
-  let currentId = extractTicketId();
-  setInterval(function() {
-    const newId = extractTicketId();
-    if (newId && newId !== currentId) {
-      currentId = newId;
-      const container = document.getElementById('tab-content-profile');
-      if (container) {
-        populateProfileTab(container);
-      }
-    }
-  }, 3000);
-
-  /***************************************************
-   * 12) Open Button
+   * 10) Open Button (Floating)
    ***************************************************/
   const openBtn = document.createElement('button');
   openBtn.id = "sway-open-btn";
@@ -1081,9 +1086,23 @@ body.dark-mode-override {
   document.body.appendChild(openBtn);
 
   /***************************************************
-   * 13) Initialize on DOM ready
+   * 11) Update content if ticket changes
    ***************************************************/
-  if (!isTicketPage()) return;
+  let currentId = extractTicketId();
+  setInterval(function() {
+    const newId = extractTicketId();
+    if (newId && newId !== currentId) {
+      currentId = newId;
+      const container = document.getElementById('tab-content-profile');
+      if (container) {
+        populateProfileTab(container);
+      }
+    }
+  }, 3000);
+
+  /***************************************************
+   * 12) Initialize on DOM ready
+   ***************************************************/
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
       initTheme();
