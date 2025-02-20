@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.5
+// @version      2.6
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,6 +9,7 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
+
 
 (function() {
   'use strict';
@@ -64,24 +65,19 @@
     style.id = "multitool-beast-css";
     style.innerHTML = `
 /* 
-  Pastel "Material-ish" Panel 
-  With a tiny drag handle at top center,
-  and separated top bar (circle buttons on left, toggle on right).
+  Pastel "Material-ish" Panel with cute separation
 */
 
 /* Light / Dark mode color definitions */
 :root {
-  /* Light mode */
   --light-panel-bg: #fffaf5;  
   --light-panel-fg: #2f2f2f;
   --light-panel-border: #d1ccc9;
 
-  /* Dark mode */
   --dark-panel-bg: #1e293b;
   --dark-panel-fg: #e2e8f0;
   --dark-panel-border: #475569;
 
-  /* Tabs (pastel) */
   --tab-bg: #e8f1fa;
   --tab-border: #b3d4f0; 
   --tab-fg: #14425c;    
@@ -91,7 +87,7 @@
   --tab-active-fg: #0f2d3f;
 }
 
-/* Switch variable sets based on body class */
+/* Use variables based on mode */
 body:not(.dark-mode-override) {
   --panel-bg: var(--light-panel-bg);
   --panel-fg: var(--light-panel-fg);
@@ -116,19 +112,19 @@ body.dark-mode-override {
   border-radius: 16px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
   z-index: 999999;
-  display: none; /* toggled by script */
+  display: none;
   resize: both;
   overflow: auto;
   transition: box-shadow 0.2s;
 }
 
-/* Add bigger shadow + higher z-index while dragging */
+/* While dragging: add heavier shadow and higher z-index */
 #multitool-beast-wrapper.dragging {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   z-index: 9999999;
 }
 
-/* Tiny tab drag handle at top center */
+/* Tiny drag handle at top center */
 .drag-handle {
   position: absolute;
   top: 0;
@@ -140,24 +136,29 @@ body.dark-mode-override {
   border-radius: 6px 6px 0 0;
   cursor: move;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  z-index: 10000;
+  pointer-events: all;
 }
 
-/* The top bar with circle buttons on left, toggle on right */
+/* Top bar: add a bottom border to separate it from the header */
 .mtb-top-bar {
-  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 6px 8px;
+  border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 4px;
 }
 
-.mtb-top-bar-left, .mtb-top-bar-right {
+/* Top bar containers */
+.mtb-top-bar-left,
+.mtb-top-bar-right {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* Round/cute circle buttons for up/down/close */
+/* Circle buttons for up/down/close (placed in left container) */
 .circle-btn {
   width: 30px;
   height: 30px;
@@ -167,7 +168,6 @@ body.dark-mode-override {
   border-radius: 50%;
   cursor: pointer;
   font-size: 14px;
-  outline: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -180,8 +180,7 @@ body.dark-mode-override {
 .circle-btn:active {
   background-color: #dadada;
 }
-
-/* "Close" is a bit more alarming color */
+/* Close button */
 .close-btn {
   background-color: #ffe5e5;
   border: 1px solid #ffaaaa;
@@ -195,7 +194,7 @@ body.dark-mode-override {
   background-color: #ffcccc;
 }
 
-/* Theme toggle switch */
+/* Theme toggle switch in right container */
 .theme-toggle-wrapper {
   position: relative;
   width: 44px;
@@ -246,7 +245,7 @@ body.dark-mode-override {
   transform: translateX(22px);
 }
 
-/* The header (logo + title), below top bar */
+/* Header: add a bottom border to separate it from the content */
 .mtb-header {
   display: flex;
   align-items: center;
@@ -254,6 +253,7 @@ body.dark-mode-override {
   padding: 8px 12px;
   gap: 8px;
   border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 4px;
 }
 .mtb-logo {
   width: 28px;
@@ -266,7 +266,7 @@ body.dark-mode-override {
   margin: 0;
 }
 
-/* The main content area (tabs + tab content) */
+/* Main content area (tabs + tab content) */
 .mtb-content {
   padding: 8px 12px;
 }
@@ -275,8 +275,7 @@ body.dark-mode-override {
 .mtb-tabs {
   display: flex;
   gap: 8px;
-  margin: 0;
-  margin-bottom: 8px;
+  margin: 0 0 8px 0;
   padding: 0;
   list-style: none;
   justify-content: flex-start;
@@ -315,15 +314,26 @@ body.dark-mode-override {
   margin-bottom: 8px;
 }
 
-/* Field rows */
+/* Field rows: add thin bottom border and separation */
 .fieldRow {
   display: flex;
   align-items: center;
-  margin-bottom: 5px;
   gap: 6px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--panel-border);
 }
-.fieldRow .fw-bold {
-  font-weight: 600;
+.fieldRow:last-child {
+  border-bottom: none;
+}
+
+/* The account value: darker text, light background, rounded */
+.fresh-value {
+  background-color: rgba(0,0,0,0.05);
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #333;
+  font-weight: 500;
 }
 
 /* For text-based copy buttons */
@@ -358,7 +368,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* The open button (floating) at bottom-right corner of page */
+/* Open button (floating) */
 #sway-open-btn {
   position: fixed;
   bottom: 0;
@@ -563,7 +573,7 @@ body.dark-mode-override {
     });
   }
 
-  // Create a field row
+  // Create a field row with bottom border and styled value
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow";
@@ -587,7 +597,7 @@ body.dark-mode-override {
 
     if (withCopy) {
       const btn = document.createElement('button');
-      btn.className = "sway-btn-icon"; // icon-only style
+      btn.className = "sway-btn-icon";
       btn.style.marginLeft = "8px";
       btn.innerHTML = `📋`;
       btn.title = "Copy";
@@ -612,7 +622,7 @@ body.dark-mode-override {
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
 
-    // A "section" with the main fields
+    // Section with main fields
     const secProfile = document.createElement('div');
     secProfile.className = "mtb-section";
     secProfile.appendChild(createMenuItem("Ticket ID", tIdVal));
@@ -622,12 +632,11 @@ body.dark-mode-override {
     secProfile.appendChild(carrRow);
     secProfile.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-    // Copy account/profile button
+    // Copy Account/Profile button
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
-    copyAccBtn.className = "sway-btn-text"; // pastel tab-like
+    copyAccBtn.className = "sway-btn-text";
     copyAccBtn.style.marginTop = "8px";
-
     copyAccBtn.addEventListener('click', function() {
       const txt = accountVal + "/" + profileVal;
       navigator.clipboard.writeText(txt).then(function() {
@@ -636,25 +645,24 @@ body.dark-mode-override {
       });
     });
 
-    // Copy selected button
+    // Copy Selected button
     const copyAllBtn = document.createElement('button');
     copyAllBtn.id = "copy-all-selected-btn";
-    copyAllBtn.className = "sway-btn-text"; // pastel tab-like
+    copyAllBtn.className = "sway-btn-text";
     copyAllBtn.textContent = "Copy Selected";
     copyAllBtn.style.marginTop = "8px";
     copyAllBtn.addEventListener('click', copyAllSelected);
 
-    // Put them side by side
+    // Place them side by side
     const copyRow = document.createElement('div');
     copyRow.style.display = "flex";
     copyRow.style.gap = "8px";
     copyRow.style.marginTop = "8px";
     copyRow.appendChild(copyAccBtn);
     copyRow.appendChild(copyAllBtn);
-
     secProfile.appendChild(copyRow);
 
-    // Include summary below
+    // Include Summary checkbox below the copy buttons
     const summaryDiv = document.createElement('div');
     summaryDiv.style.marginTop = '8px';
     const sumCheck = document.createElement('input');
@@ -663,11 +671,11 @@ body.dark-mode-override {
     sumCheck.style.marginRight = '4px';
     summaryDiv.appendChild(sumCheck);
     summaryDiv.appendChild(document.createTextNode('Include Summary'));
-
     secProfile.appendChild(summaryDiv);
+
     container.appendChild(secProfile);
 
-    // A "section" with recent tickets
+    // Section for recent tickets
     const secRecent = document.createElement('div');
     secRecent.className = "mtb-section";
     const rHead = document.createElement('div');
@@ -703,7 +711,6 @@ body.dark-mode-override {
           });
         });
         tDiv.appendChild(cpBtn);
-
         secRecent.appendChild(tDiv);
       });
     } else {
@@ -766,7 +773,6 @@ body.dark-mode-override {
       });
       sec.appendChild(card);
     });
-
     container.appendChild(sec);
   }
 
@@ -808,14 +814,12 @@ body.dark-mode-override {
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
 
-    // Restore position if saved
+    // Restore saved position if available
     const pos = loadPref("boxPosition", null);
     if (pos && pos.top && pos.left) {
       wrapper.style.top = pos.top;
       wrapper.style.left = pos.left;
     }
-
-    // Display preference
     wrapper.style.display = loadPref("keepOpen", false) ? "block" : "none";
     if (loadPref("keepOpen", false)) {
       savePref("multitool_open", true);
@@ -825,20 +829,19 @@ body.dark-mode-override {
       wrapper.style.display = "none";
     }
 
-    // Drag handle (tiny tab in top center)
+    // Drag handle (tiny tab at top center)
     const dragHandle = document.createElement('div');
     dragHandle.className = "drag-handle";
     wrapper.appendChild(dragHandle);
 
-    // Top bar
+    // Top bar with separation (circle buttons on LEFT, toggle on RIGHT)
     const topBar = document.createElement('div');
     topBar.className = "mtb-top-bar";
 
-    // left container (circle buttons)
+    // Left container for circle buttons
     const topBarLeft = document.createElement('div');
     topBarLeft.className = "mtb-top-bar-left";
 
-    // Up/down/close circle buttons
     const upBtn = document.createElement('button');
     upBtn.className = "circle-btn";
     upBtn.textContent = "↑";
@@ -861,15 +864,13 @@ body.dark-mode-override {
       const openBtn = document.getElementById('sway-open-btn');
       if (openBtn) openBtn.style.display = "block";
     });
-
     topBarLeft.appendChild(upBtn);
     topBarLeft.appendChild(downBtn);
     topBarLeft.appendChild(closeBtn);
 
-    // right container (theme toggle)
+    // Right container for dark mode toggle
     const topBarRight = document.createElement('div');
     topBarRight.className = "mtb-top-bar-right";
-
     const toggleWrapper = document.createElement('div');
     toggleWrapper.className = "theme-toggle-wrapper";
     const toggleInput = document.createElement('input');
@@ -892,32 +893,26 @@ body.dark-mode-override {
     toggleLabel.appendChild(sunSpan);
     toggleWrapper.appendChild(toggleInput);
     toggleWrapper.appendChild(toggleLabel);
-
     topBarRight.appendChild(toggleWrapper);
 
-    // assemble top bar
     topBar.appendChild(topBarLeft);
     topBar.appendChild(topBarRight);
     wrapper.appendChild(topBar);
 
-    // The header (logo + title)
+    // Header (logo + title) with separation from content
     const header = document.createElement('div');
     header.className = "mtb-header";
-
     const tealiumLogo = document.createElement('img');
     tealiumLogo.className = "mtb-logo";
-    tealiumLogo.src = "https://www.tealium.com/wp-content/uploads/2021/07/cropped-Tealium-logo-2021-32x32.png"; 
-    // ^ Replace with your desired Tealium logo
-
+    tealiumLogo.src = "https://www.tealium.com/wp-content/uploads/2021/07/cropped-Tealium-logo-2021-32x32.png";
     const h3 = document.createElement('h3');
     h3.className = "mtb-title";
     h3.textContent = "MultiTool Beast";
-
     header.appendChild(tealiumLogo);
     header.appendChild(h3);
     wrapper.appendChild(header);
 
-    // The main content area (tabs + content)
+    // Main content area (tabs + tab content)
     const content = document.createElement('div');
     content.className = "mtb-content";
 
@@ -946,10 +941,9 @@ body.dark-mode-override {
     tabsUL.appendChild(profileTab);
     tabsUL.appendChild(pinnedTab);
     tabsUL.appendChild(settingsTab);
-
     content.appendChild(tabsUL);
 
-    // Tab contents
+    // Tab content containers
     const profileContent = document.createElement('div');
     profileContent.id = "tab-content-profile";
     profileContent.className = "tab-content";
@@ -966,7 +960,6 @@ body.dark-mode-override {
     content.appendChild(profileContent);
     content.appendChild(pinnedContent);
     content.appendChild(settingsContent);
-
     wrapper.appendChild(content);
     document.body.appendChild(wrapper);
 
@@ -975,7 +968,7 @@ body.dark-mode-override {
     buildPinnedTabContent(pinnedContent);
     buildSettingsContent(settingsContent);
 
-    // Drag events
+    // Drag events for the drag handle
     let isDragging = false;
     dragHandle.addEventListener('mousedown', function(e) {
       e.preventDefault();
@@ -998,7 +991,6 @@ body.dark-mode-override {
         wrapper.classList.remove("dragging");
         document.removeEventListener('mousemove', dragMove);
         document.removeEventListener('mouseup', closeDrag);
-        // Save new position
         savePref("boxPosition", {
           top: wrapper.style.top,
           left: wrapper.style.left
@@ -1008,11 +1000,10 @@ body.dark-mode-override {
       document.addEventListener('mouseup', closeDrag);
     });
 
-    // Show default tab
     showTab('profile');
   }
 
-  // Update content if the ticket changes
+  // Update content on ticket change
   let currentId = extractTicketId();
   setInterval(function() {
     const newId = extractTicketId();
@@ -1026,12 +1017,11 @@ body.dark-mode-override {
   }, 3000);
 
   /***************************************************
-   * 9) The Open Button
+   * 9) Open Button
    ***************************************************/
   const openBtn = document.createElement('button');
   openBtn.id = "sway-open-btn";
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png">`;
-
   const isOpenPref = loadPref("multitool_open", false) || loadPref("keepOpen", false);
   if (isOpenPref) {
     openBtn.style.display = "none";
