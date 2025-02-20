@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.92
+// @version      1.93
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,7 +14,7 @@
   'use strict';
 
   /***********************************************
-   * Check if current page is a ticket page
+   * Check if this is a ticket page
    ***********************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
@@ -76,7 +76,6 @@
     return tickets;
   }
 
-  // CARR is fetched from the company page by clicking the "show more" button.
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -123,7 +122,28 @@
   }
 
   /***********************************************
-   * Copy & Format Functions
+   * Dark Mode Functions
+   ***********************************************/
+  function initTheme() {
+    const stored = localStorage.getItem('fdTheme');
+    if (stored === 'theme-dark') {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+  }
+  function toggleTheme() {
+    if (document.body.classList.contains('dark')) {
+      document.body.classList.remove('dark');
+      localStorage.setItem('fdTheme', 'theme-light');
+    } else {
+      document.body.classList.add('dark');
+      localStorage.setItem('fdTheme', 'theme-dark');
+    }
+  }
+
+  /***********************************************
+   * Format & Copy Functions (Slack/JIRA)
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -139,7 +159,6 @@
       jiraBtn.classList.add('active');
     }
   }
-
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(function(row) {
@@ -220,9 +239,6 @@
     return row;
   }
 
-  /***********************************************
-   * Build Pinned Tab Content (Quick Access Grid)
-   ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
     grid.className = "row";
@@ -249,9 +265,6 @@
     return grid;
   }
 
-  /***********************************************
-   * Populate Profile Tab (Ticket/Field Info)
-   ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
     const tIdVal = currentTicketId ? "#" + currentTicketId : "N/A";
@@ -343,7 +356,6 @@
     // Create outer wrapper
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
-    // Fixed position: bottom 80px, right 20px; width 360px, min-width 200px
     wrapper.style.position = "fixed";
     wrapper.style.bottom = "80px";
     wrapper.style.right = "20px";
@@ -353,14 +365,13 @@
     wrapper.style.minHeight = "200px";
     wrapper.style.resize = "both";
     wrapper.style.overflow = "auto";
-    // Use native Freshdesk widget styling
     wrapper.className = "widget-item";
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
       
     /***** Build UI inside the widget ******/
       
-    // Header Bar (using Freshdesk sidebar header style)
+    // Header Bar
     const headerBar = document.createElement('div');
     headerBar.className = "sidebar__title";
     headerBar.style.cursor = "move";
@@ -553,7 +564,6 @@
       }
     };
       
-    setFormat('slack');
     showTab('profile');
     initTheme();
     console.log("[MultiTool Beast] Loaded with Freshdesk native CSS classes.");
@@ -580,7 +590,6 @@
   /***********************************************
    * Open Button – a tab-style button fixed at bottom-right
    ***********************************************/
-  // The open button is now styled as a small tab with only the Tealium icon.
   const openBtn = document.createElement('button');
   openBtn.style.position = "fixed";
   openBtn.style.bottom = "0";
@@ -595,9 +604,9 @@
   openBtn.style.border = "1px solid #ccc";
   openBtn.style.boxShadow = "0 -2px 4px rgba(0,0,0,0.2)";
   openBtn.title = "Open MultiTool Beast";
-  // Use the Tealium icon as the sole content:
+  // Tealium icon only (no text)
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:32px;height:32px;">`;
-  openBtn.style.display = "none";
+  openBtn.style.display = (localStorage.getItem("multitool_open") === "true") ? "none" : "block";
   openBtn.addEventListener('click', function() {
     if (window._multitoolWrapper) {
       window._multitoolWrapper.style.display = "block";
@@ -610,10 +619,6 @@
       populateProfileTab(profileFieldsContainer);
     }
   });
-  // Show the open button if the widget is closed (default state)
-  if (localStorage.getItem("multitool_open") !== "true") {
-    openBtn.style.display = "block";
-  }
   document.body.appendChild(openBtn);
     
   /***********************************************
