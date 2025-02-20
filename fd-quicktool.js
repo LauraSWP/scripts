@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.84
+// @version      1.85
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -18,7 +18,7 @@
    * 0) Load Bulma CSS Inline via GM_xmlhttpRequest
    ***********************************************/
   function loadBulmaCSS(callback) {
-    const url = "https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css";
+    const url = "https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css";
     GM_xmlhttpRequest({
       method: "GET",
       url: url,
@@ -56,16 +56,13 @@ html.dark .button {
   color: #e0e0e0 !important;
 }
 `;
-  function applyDarkModeCSS() {
-    // In our shadow DOM we'll inject Bulma + overrides together.
-    // (See below in initTool.)
-    return darkModeOverrides;
-  }
 
   /***********************************************
    * 2) Utility: showTab (switch between "Profile" and "Pinned" tabs)
    ***********************************************/
-  function showTab(which, shadow) {
+  function showTab(which) {
+    const shadow = window._multitoolShadow;
+    if (!shadow) return;
     shadow.querySelectorAll('.multitool-tab-content').forEach(el => {
       el.classList.remove('block');
       el.classList.add('hidden');
@@ -93,7 +90,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 3) Inline SVG Icons
+   * 3) Inline SVG Icons (person, pin, copy)
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -111,7 +108,7 @@ html.dark .button {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: Appearance via our custom switch
+   * 4) Dark Mode Toggle: via our custom switch
    ***********************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
@@ -240,6 +237,8 @@ html.dark .button {
   let formatMode = 'slack';
   function setFormat(mode) {
     formatMode = mode;
+    const shadow = window._multitoolShadow;
+    if (!shadow) return;
     const slackBtn = shadow.getElementById('format-slack-btn');
     const jiraBtn = shadow.getElementById('format-jira-btn');
     if (!slackBtn || !jiraBtn) return;
@@ -256,13 +255,14 @@ html.dark .button {
     }
   }
   function copyAllSelected() {
+    const shadow = window._multitoolShadow;
+    if (!shadow) return;
     let copyText = "";
-    // We need to search inside the shadow DOM
     shadow.querySelectorAll('.fieldRow').forEach(row => {
       const chk = row.querySelector('.field-selector');
       if (chk && chk.checked) {
         const lblSpan = row.querySelector('span');
-        const valEl = row.querySelector('.bg-light');
+        const valEl = row.querySelector('.has-background-light');
         if (lblSpan && valEl) {
           let labelText = lblSpan.textContent.replace(/:\s*$/, "");
           let valueText = valEl.textContent.trim();
@@ -448,13 +448,13 @@ html.dark .button {
     }
     
     fetchCARR(cVal => {
-      const vEl = carrRow.querySelector('.bg-light');
+      const vEl = carrRow.querySelector('.has-background-light');
       if (vEl) vEl.textContent = cVal;
     });
   }
 
   /***********************************************
-   * 9) Build Entire Tool Layout Using Bulma (in Shadow DOM)
+   * 9) Build Entire Tool Layout Using Bulma in Shadow DOM
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
@@ -466,10 +466,10 @@ html.dark .button {
       initTheme();
       const isOpen = false;
       
-      // Create outer wrapper with fixed position (as in Bootstrap version)
+      // Create outer wrapper with fixed position as in Bootstrap version
       const wrapper = document.createElement('div');
       wrapper.id = "multitool-beast-wrapper";
-      // Position: fixed at bottom:80px, right:20px; min-width 200px
+      // Fixed position: bottom 80px, right 20px; min-width 200px
       wrapper.style.position = "fixed";
       wrapper.style.bottom = "80px";
       wrapper.style.right = "20px";
@@ -479,21 +479,20 @@ html.dark .button {
       wrapper.style.minHeight = "200px";
       wrapper.style.resize = "both";
       wrapper.style.overflow = "auto";
-      // We'll add a Bulma "box" class for styling
-      wrapper.className = "box p-4";
-      // Initially hidden if not open
+      wrapper.className = "box p-4 bg-white";
       wrapper.style.display = isOpen ? "block" : "none";
       localStorage.setItem("multitool_open", isOpen ? "true" : "false");
-
-      // Attach shadow DOM to isolate Bulma CSS
+      
+      // Attach shadow DOM to wrapper (to isolate Bulma)
       const shadow = wrapper.attachShadow({ mode: "open" });
+      window._multitoolShadow = shadow; // store globally for access in other functions
       
       // Create a style element in shadow with Bulma CSS + dark mode overrides
       const styleEl = document.createElement('style');
       styleEl.textContent = bulmaCSS + "\n" + darkModeOverrides;
       shadow.appendChild(styleEl);
       
-      // Create a container div for our UI elements (inside shadow DOM)
+      // Create a container div for our UI elements (inside shadow)
       const container = document.createElement('div');
 
       // Top Bar
@@ -561,13 +560,13 @@ html.dark .button {
       liProfile.id = "tab-btn-profile";
       liProfile.className = "multitool-tab-item";
       liProfile.innerHTML = `<a><span class="icon is-small">${personIconSVG}</span><span>Profile</span></a>`;
-      liProfile.addEventListener('click', () => showTab('profile', shadow));
+      liProfile.addEventListener('click', () => showTab('profile'));
       ul.appendChild(liProfile);
       const liPinned = document.createElement('li');
       liPinned.id = "tab-btn-pinned";
       liPinned.className = "multitool-tab-item";
       liPinned.innerHTML = `<a><span class="icon is-small">${pinIconSVG}</span><span>Pinned</span></a>`;
-      liPinned.addEventListener('click', () => showTab('pinned', shadow));
+      liPinned.addEventListener('click', () => showTab('pinned'));
       ul.appendChild(liPinned);
       tabsNav.appendChild(ul);
       container.appendChild(tabsNav);
@@ -635,7 +634,6 @@ html.dark .button {
       tabPinned.appendChild(pinnedContent);
       container.appendChild(tabPinned);
       
-      // Append container to shadow DOM
       shadow.appendChild(container);
       
       // Draggable handle (a small button above the header)
@@ -668,7 +666,7 @@ html.dark .button {
       };
       
       setFormat('slack');
-      showTab('profile', shadow);
+      showTab('profile');
       initTheme();
       console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma CSS inline in Shadow DOM.");
       
