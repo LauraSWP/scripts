@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.2
+// @version      2.3
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -62,11 +62,32 @@
     const style = document.createElement('style');
     style.id = "multitool-beast-css";
     style.innerHTML = `
-    /* 
-      Base Pastel/Light Style + Dark Mode 
-      Inspired by your references 
-    */
+    /* Pastel "Sway-like" Panel Styling */
+    :root {
+      /* Light mode colors */
+      --light-panel-bg: #fefcf9;  /* pastel off-white */
+      --light-panel-fg: #333;
+      --light-panel-border: #ccc;
     
+      /* Dark mode colors */
+      --dark-panel-bg: #1e293b;
+      --dark-panel-fg: #e2e8f0;
+      --dark-panel-border: #475569;
+    }
+    
+    /* Let the body class handle which set of vars to use */
+    body:not(.dark-mode-override) {
+      --panel-bg: var(--light-panel-bg);
+      --panel-fg: var(--light-panel-fg);
+      --panel-border: var(--light-panel-border);
+    }
+    body.dark-mode-override {
+      --panel-bg: var(--dark-panel-bg);
+      --panel-fg: var(--dark-panel-fg);
+      --panel-border: var(--dark-panel-border);
+    }
+    
+    /* Main wrapper */
     #multitool-beast-wrapper {
       font-family: 'Segoe UI', Tahoma, sans-serif;
       position: fixed;
@@ -85,44 +106,39 @@
       resize: both;
       overflow: auto;
     }
-    :root {
-      --light-panel-bg: #f9fafc;
-      --light-panel-fg: #333;
-      --light-panel-border: #ccc;
-      --dark-panel-bg: #1e293b;
-      --dark-panel-fg: #e2e8f0;
-      --dark-panel-border: #475569;
-    }
-    body:not(.dark-mode-override) {
-      --panel-bg: var(--light-panel-bg);
-      --panel-fg: var(--light-panel-fg);
-      --panel-border: var(--light-panel-border);
-    }
-    body.dark-mode-override {
-      --panel-bg: var(--dark-panel-bg);
-      --panel-fg: var(--dark-panel-fg);
-      --panel-border: var(--dark-panel-border);
-    }
-
-    /* Top Bar */
+    
+    /* Top bar (now has a "header-left" for logo/title and "header-right" for toggle/buttons) */
     .mtb-top-bar {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
       padding: 8px 12px;
       border-bottom: 1px solid var(--panel-border);
       background-color: var(--panel-bg);
+      gap: 12px;
     }
-    .mtb-top-bar-left {
+    .mtb-header-left {
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .mtb-top-bar-right {
+    .mtb-header-left img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+    }
+    .mtb-header-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0;
+    }
+    .mtb-header-right {
       display: flex;
       align-items: center;
       gap: 8px;
     }
+    
+    /* Buttons in the top bar */
     .mtb-btn {
       background-color: transparent;
       border: 1px solid var(--panel-border);
@@ -142,8 +158,8 @@
     .mtb-btn.mtb-btn-close:hover {
       background-color: rgba(225,29,72,0.1);
     }
-
-    /* Toggle Switch (Dark/Light) */
+    
+    /* Theme toggle switch (moon & sun icons) */
     .theme-toggle-wrapper {
       position: relative;
       width: 50px;
@@ -177,8 +193,7 @@
       border-radius: 50%;
       transition: transform 0.3s;
     }
-    /* Icons on each side of the toggle track */
-    .theme-toggle + label .toggle-icon {
+    .toggle-icon {
       position: absolute;
       width: 16px;
       height: 16px;
@@ -191,12 +206,11 @@
     .toggle-icon--sun {
       right: 5px;
     }
-    /* Move knob on check */
     .theme-toggle:checked + label:before {
       transform: translateX(26px);
     }
-
-    /* Header (Tabs) */
+    
+    /* Header (tabs) */
     .mtb-header-section {
       border-bottom: 1px solid var(--panel-border);
       background-color: var(--panel-bg);
@@ -221,12 +235,12 @@
       border-bottom: 2px solid var(--panel-bg);
       background-color: rgba(0,0,0,0.05);
     }
-
+    
     /* Content area */
     .mtb-content {
       padding: 8px;
     }
-
+    
     /* Section block styling */
     .mtb-section {
       background-color: rgba(0,0,0,0.02);
@@ -235,7 +249,7 @@
       padding: 8px;
       margin-bottom: 8px;
     }
-
+    
     /* Field rows */
     .fieldRow {
       display: flex;
@@ -259,7 +273,7 @@
       background-color: #94a3b8;
       color: #f9fafb;
     }
-
+    
     /* Draggable handle */
     .sway-handle {
       background: rgba(0,0,0,0.05);
@@ -272,7 +286,7 @@
       font-size: 14px;
       color: var(--panel-fg);
     }
-
+    
     /* The open button (floating) */
     #sway-open-btn {
       position: fixed;
@@ -294,6 +308,7 @@
       height: 40px; 
       object-fit: contain;
     }
+    
 
     `;
     document.head.appendChild(style);
@@ -350,11 +365,29 @@
   function buildTopBar() {
     const bar = document.createElement('div');
     bar.className = "mtb-top-bar";
-
-    // Left: Theme Toggle
+  
+    // Left: Logo + Title
     const left = document.createElement('div');
-    left.className = "mtb-top-bar-left";
-    
+    left.className = "mtb-header-left";
+  
+    // Tealium logo
+    const tealiumLogo = document.createElement('img');
+    tealiumLogo.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=24,h=24,q=100/..."
+    // (replace above URL with your preferred Tealium logo)
+  
+    // Title
+    const title = document.createElement('h3');
+    title.className = "mtb-header-title";
+    title.textContent = "MultiTool Beast";
+  
+    left.appendChild(tealiumLogo);
+    left.appendChild(title);
+  
+    // Right: Theme toggle + up/down/close
+    const right = document.createElement('div');
+    right.className = "mtb-header-right";
+  
+    // Theme toggle wrapper
     const toggleWrapper = document.createElement('div');
     toggleWrapper.className = "theme-toggle-wrapper";
     const toggleInput = document.createElement('input');
@@ -365,41 +398,33 @@
     toggleInput.addEventListener('change', () => {
       toggleTheme(toggleInput.checked ? "dark" : "light");
     });
-
     const toggleLabel = document.createElement('label');
     toggleLabel.htmlFor = "theme-toggle";
-    // Add icons to each side
+    // Add the moon/sun icons inside
     const moonSpan = document.createElement('span');
     moonSpan.className = "toggle-icon toggle-icon--moon";
     moonSpan.innerHTML = moonIconSVG;
     const sunSpan = document.createElement('span');
     sunSpan.className = "toggle-icon toggle-icon--sun";
     sunSpan.innerHTML = sunIconSVG;
-
     toggleLabel.appendChild(moonSpan);
     toggleLabel.appendChild(sunSpan);
-
     toggleWrapper.appendChild(toggleInput);
     toggleWrapper.appendChild(toggleLabel);
-
-    left.appendChild(toggleWrapper);
-
-    // Right: Up, Down, Close
-    const right = document.createElement('div');
-    right.className = "mtb-top-bar-right";
-
+  
+    // Up, down, close buttons
     const upBtn = document.createElement('button');
     upBtn.className = "mtb-btn";
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
     upBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
+  
     const downBtn = document.createElement('button');
     downBtn.className = "mtb-btn";
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
     downBtn.addEventListener('click', () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
-
+  
     const closeBtn = document.createElement('button');
     closeBtn.className = "mtb-btn mtb-btn-close";
     closeBtn.textContent = "Close";
@@ -410,15 +435,19 @@
       const openBtn = document.getElementById('sway-open-btn');
       if (openBtn) openBtn.style.display = "block";
     });
-
+  
+    // Append everything
+    right.appendChild(toggleWrapper);
     right.appendChild(upBtn);
     right.appendChild(downBtn);
     right.appendChild(closeBtn);
-
+  
+    // Final assembly
     bar.appendChild(left);
     bar.appendChild(right);
     return bar;
   }
+  
 
   /***************************************************
    * 5) Tabs
