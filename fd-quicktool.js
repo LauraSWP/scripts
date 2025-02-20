@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.7
+// @version      2.8
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,7 +9,6 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
-
 
 (function() {
   'use strict';
@@ -64,11 +63,9 @@
     const style = document.createElement('style');
     style.id = "multitool-beast-css";
     style.innerHTML = `
-/* 
-  Pastel "Material-ish" Panel with cute separation
-*/
+/* Pastel "Material-ish" Panel with cute separation */
 
-/* Light / Dark mode color definitions */
+/* Color variables */
 :root {
   --light-panel-bg: #fffaf5;  
   --light-panel-fg: #2f2f2f;
@@ -81,13 +78,12 @@
   --tab-bg: #e8f1fa;
   --tab-border: #b3d4f0; 
   --tab-fg: #14425c;    
-
   --tab-active-bg: #d3eafc; 
   --tab-active-border: #91c7f3;
   --tab-active-fg: #0f2d3f;
 }
 
-/* Use variables based on mode */
+/* Apply mode variables */
 body:not(.dark-mode-override) {
   --panel-bg: var(--light-panel-bg);
   --panel-fg: var(--light-panel-fg);
@@ -118,7 +114,7 @@ body.dark-mode-override {
   transition: box-shadow 0.2s;
 }
 
-/* While dragging: add heavier shadow and higher z-index */
+/* While dragging: heavier shadow & higher z-index */
 #multitool-beast-wrapper.dragging {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   z-index: 9999999;
@@ -140,7 +136,7 @@ body.dark-mode-override {
   pointer-events: all;
 }
 
-/* Top bar: add a bottom border to separate it from the header */
+/* Top bar with bottom border */
 .mtb-top-bar {
   display: flex;
   justify-content: space-between;
@@ -150,7 +146,8 @@ body.dark-mode-override {
   margin-bottom: 4px;
 }
 
-/* Top bar containers */
+/* Top bar containers:
+   Left: dark mode toggle; Right: circle buttons */
 .mtb-top-bar-left,
 .mtb-top-bar-right {
   display: flex;
@@ -158,7 +155,7 @@ body.dark-mode-override {
   gap: 8px;
 }
 
-/* Circle buttons for up/down/close (placed in left container) */
+/* Circle buttons for up/down/close */
 .circle-btn {
   width: 30px;
   height: 30px;
@@ -180,7 +177,6 @@ body.dark-mode-override {
 .circle-btn:active {
   background-color: #dadada;
 }
-/* Close button */
 .close-btn {
   background-color: #ffe5e5;
   border: 1px solid #ffaaaa;
@@ -194,7 +190,7 @@ body.dark-mode-override {
   background-color: #ffcccc;
 }
 
-/* Theme toggle switch in right container */
+/* Theme toggle (in left container) */
 .theme-toggle-wrapper {
   position: relative;
   width: 44px;
@@ -245,7 +241,7 @@ body.dark-mode-override {
   transform: translateX(22px);
 }
 
-/* Header: add a bottom border to separate it from the content */
+/* Header (logo + title) with bottom border */
 .mtb-header {
   display: flex;
   align-items: center;
@@ -305,7 +301,7 @@ body.dark-mode-override {
   display: none;
 }
 
-/* Section block styling inside each tab content */
+/* Section blocks */
 .mtb-section {
   background-color: rgba(0,0,0,0.02);
   border: 1px solid var(--panel-border);
@@ -314,7 +310,7 @@ body.dark-mode-override {
   margin-bottom: 8px;
 }
 
-/* Field rows: add thin bottom border and separation */
+/* Field rows with bottom border */
 .fieldRow {
   display: flex;
   align-items: center;
@@ -327,7 +323,7 @@ body.dark-mode-override {
   border-bottom: none;
 }
 
-/* The account value: darker text, light background, rounded */
+/* Account value styling */
 .fresh-value {
   background-color: rgba(0,0,0,0.05);
   padding: 2px 4px;
@@ -336,7 +332,7 @@ body.dark-mode-override {
   font-weight: 500;
 }
 
-/* For text-based copy buttons */
+/* Text-based copy buttons */
 .sway-btn-text {
   padding: 6px 12px;
   border-radius: 12px;
@@ -352,7 +348,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
-/* For icon-only copy buttons */
+/* Icon-only copy buttons */
 .sway-btn-icon {
   background-color: transparent;
   border: 1px solid var(--tab-border);
@@ -366,6 +362,22 @@ body.dark-mode-override {
 .sway-btn-icon:hover {
   background-color: rgba(0,0,0,0.05);
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* Recent ticket links */
+.recent-ticket {
+  display: inline-block;
+  background-color: #f0f8ff;
+  color: #2563eb;
+  padding: 4px 8px;
+  border: 1px solid #b3d4f0;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.recent-ticket:hover {
+  background-color: #e0f0ff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 /* Open button (floating) */
@@ -573,7 +585,7 @@ body.dark-mode-override {
     });
   }
 
-  // Create a field row with bottom border and styled value
+  // Create a field row with styled value and bottom border
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow";
@@ -632,7 +644,7 @@ body.dark-mode-override {
     secProfile.appendChild(carrRow);
     secProfile.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-    // Copy Account/Profile button
+    // Copy Account/Profile and Copy Selected buttons side by side
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
     copyAccBtn.className = "sway-btn-text";
@@ -645,7 +657,6 @@ body.dark-mode-override {
       });
     });
 
-    // Copy Selected button
     const copyAllBtn = document.createElement('button');
     copyAllBtn.id = "copy-all-selected-btn";
     copyAllBtn.className = "sway-btn-text";
@@ -653,7 +664,6 @@ body.dark-mode-override {
     copyAllBtn.style.marginTop = "8px";
     copyAllBtn.addEventListener('click', copyAllSelected);
 
-    // Place them side by side
     const copyRow = document.createElement('div');
     copyRow.style.display = "flex";
     copyRow.style.gap = "8px";
@@ -675,7 +685,7 @@ body.dark-mode-override {
 
     container.appendChild(secProfile);
 
-    // Section for recent tickets
+    // Section for recent tickets with cuter style
     const secRecent = document.createElement('div');
     secRecent.className = "mtb-section";
     const rHead = document.createElement('div');
@@ -689,21 +699,20 @@ body.dark-mode-override {
       recTix.forEach(function(t) {
         const tDiv = document.createElement('div');
         tDiv.style.marginBottom = "8px";
-        tDiv.style.paddingBottom = "8px";
-        tDiv.style.borderBottom = "1px solid var(--panel-border)";
-
+        tDiv.style.display = "flex";
+        tDiv.style.alignItems = "center";
+        tDiv.style.gap = "8px";
+        // Use the new "recent-ticket" style on the link
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
         a.textContent = t.subject;
-        a.style.color = "#2563eb";
+        a.className = "recent-ticket";
         tDiv.appendChild(a);
-
         const cpBtn = document.createElement('button');
         cpBtn.className = "sway-btn-icon";
-        cpBtn.style.marginLeft = "8px";
-        cpBtn.innerHTML = `📋`;
         cpBtn.title = "Copy Link";
+        cpBtn.innerHTML = `📋`;
         cpBtn.addEventListener('click', function() {
           navigator.clipboard.writeText(t.href).then(function() {
             cpBtn.innerHTML = `<span style="color: green;">&#10003;</span>`;
@@ -720,7 +729,6 @@ body.dark-mode-override {
     }
     container.appendChild(secRecent);
 
-    // Async fetch CARR
     fetchCARR(function(cVal) {
       const vEl = carrRow.querySelector('.fresh-value');
       if (vEl) vEl.textContent = cVal;
@@ -834,43 +842,13 @@ body.dark-mode-override {
     dragHandle.className = "drag-handle";
     wrapper.appendChild(dragHandle);
 
-    // Top bar with separation (circle buttons on LEFT, toggle on RIGHT)
+    // Top bar with separation
     const topBar = document.createElement('div');
     topBar.className = "mtb-top-bar";
 
-    // Left container for circle buttons
+    // Left container: Dark mode toggle
     const topBarLeft = document.createElement('div');
     topBarLeft.className = "mtb-top-bar-left";
-
-    const upBtn = document.createElement('button');
-    upBtn.className = "circle-btn";
-    upBtn.textContent = "↑";
-    upBtn.title = "Scroll to top";
-    upBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
-    const downBtn = document.createElement('button');
-    downBtn.className = "circle-btn";
-    downBtn.textContent = "↓";
-    downBtn.title = "Scroll to bottom";
-    downBtn.addEventListener('click', () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = "circle-btn close-btn";
-    closeBtn.textContent = "×";
-    closeBtn.title = "Close Panel";
-    closeBtn.addEventListener('click', () => {
-      wrapper.style.display = "none";
-      savePref("multitool_open", false);
-      const openBtn = document.getElementById('sway-open-btn');
-      if (openBtn) openBtn.style.display = "block";
-    });
-    topBarLeft.appendChild(upBtn);
-    topBarLeft.appendChild(downBtn);
-    topBarLeft.appendChild(closeBtn);
-
-    // Right container for dark mode toggle
-    const topBarRight = document.createElement('div');
-    topBarRight.className = "mtb-top-bar-right";
     const toggleWrapper = document.createElement('div');
     toggleWrapper.className = "theme-toggle-wrapper";
     const toggleInput = document.createElement('input');
@@ -893,13 +871,41 @@ body.dark-mode-override {
     toggleLabel.appendChild(sunSpan);
     toggleWrapper.appendChild(toggleInput);
     toggleWrapper.appendChild(toggleLabel);
-    topBarRight.appendChild(toggleWrapper);
+    topBarLeft.appendChild(toggleWrapper);
 
+    // Right container: Up, Down, Close buttons
+    const topBarRight = document.createElement('div');
+    topBarRight.className = "mtb-top-bar-right";
+    const upBtn = document.createElement('button');
+    upBtn.className = "circle-btn";
+    upBtn.textContent = "↑";
+    upBtn.title = "Scroll to top";
+    upBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    const downBtn = document.createElement('button');
+    downBtn.className = "circle-btn";
+    downBtn.textContent = "↓";
+    downBtn.title = "Scroll to bottom";
+    downBtn.addEventListener('click', () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
+    const closeBtn = document.createElement('button');
+    closeBtn.className = "circle-btn close-btn";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close Panel";
+    closeBtn.addEventListener('click', () => {
+      wrapper.style.display = "none";
+      savePref("multitool_open", false);
+      const openBtn = document.getElementById('sway-open-btn');
+      if (openBtn) openBtn.style.display = "block";
+    });
+    topBarRight.appendChild(upBtn);
+    topBarRight.appendChild(downBtn);
+    topBarRight.appendChild(closeBtn);
+
+    // Assemble top bar
     topBar.appendChild(topBarLeft);
     topBar.appendChild(topBarRight);
     wrapper.appendChild(topBar);
 
-    // Header (logo + title) with separation from content
+    // Header (logo + title) with separation
     const header = document.createElement('div');
     header.className = "mtb-header";
     const tealiumLogo = document.createElement('img');
@@ -912,32 +918,28 @@ body.dark-mode-override {
     header.appendChild(h3);
     wrapper.appendChild(header);
 
-    // Main content area (tabs + tab content)
+    // Main content area (tabs + content)
     const content = document.createElement('div');
     content.className = "mtb-content";
 
     // Tabs row
     const tabsUL = document.createElement('ul');
     tabsUL.className = "mtb-tabs";
-
     const profileTab = document.createElement('li');
     profileTab.id = "tab-btn-profile";
     profileTab.className = "mtb-tab active";
     profileTab.innerHTML = `${personIconSVG} <span>Profile</span>`;
     profileTab.addEventListener('click', () => showTab('profile'));
-
     const pinnedTab = document.createElement('li');
     pinnedTab.id = "tab-btn-pinned";
     pinnedTab.className = "mtb-tab";
     pinnedTab.innerHTML = `${pinIconSVG} <span>Pinned</span>`;
     pinnedTab.addEventListener('click', () => showTab('pinned'));
-
     const settingsTab = document.createElement('li');
     settingsTab.id = "tab-btn-settings";
     settingsTab.className = "mtb-tab";
     settingsTab.innerHTML = `${settingsIconSVG} <span>Settings</span>`;
     settingsTab.addEventListener('click', () => showTab('settings'));
-
     tabsUL.appendChild(profileTab);
     tabsUL.appendChild(pinnedTab);
     tabsUL.appendChild(settingsTab);
@@ -948,15 +950,12 @@ body.dark-mode-override {
     profileContent.id = "tab-content-profile";
     profileContent.className = "tab-content";
     profileContent.style.display = "block";
-
     const pinnedContent = document.createElement('div');
     pinnedContent.id = "tab-content-pinned";
     pinnedContent.className = "tab-content";
-
     const settingsContent = document.createElement('div');
     settingsContent.id = "tab-content-settings";
     settingsContent.className = "tab-content";
-
     content.appendChild(profileContent);
     content.appendChild(pinnedContent);
     content.appendChild(settingsContent);
@@ -968,7 +967,7 @@ body.dark-mode-override {
     buildPinnedTabContent(pinnedContent);
     buildSettingsContent(settingsContent);
 
-    // Drag events for the drag handle
+    // Drag events
     let isDragging = false;
     dragHandle.addEventListener('mousedown', function(e) {
       e.preventDefault();
