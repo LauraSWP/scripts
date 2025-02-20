@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.4
+// @version      2.5
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,7 +14,7 @@
   'use strict';
 
   /***************************************************
-   * 0) SVG Icons (Moon / Sun)
+   * 0) SVG Icons
    ***************************************************/
   const moonIconSVG = `
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -38,7 +38,6 @@
   <path d="M18.36 5.64l1.42-1.42"></path>
 </svg>`;
 
-  // Other icons as needed
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
@@ -66,13 +65,14 @@
     style.innerHTML = `
 /* 
   Pastel "Material-ish" Panel 
-  Slightly more playful & alive 
+  With a tiny drag handle at top center,
+  and separated top bar (circle buttons on left, toggle on right).
 */
 
 /* Light / Dark mode color definitions */
 :root {
   /* Light mode */
-  --light-panel-bg: #fffaf5;  /* pastel warm white */
+  --light-panel-bg: #fffaf5;  
   --light-panel-fg: #2f2f2f;
   --light-panel-border: #d1ccc9;
 
@@ -83,8 +83,8 @@
 
   /* Tabs (pastel) */
   --tab-bg: #e8f1fa;
-  --tab-border: #b3d4f0; /* slightly darker tone of tab-bg */
-  --tab-fg: #14425c;    /* a darker text color that stands out on pastel */
+  --tab-border: #b3d4f0; 
+  --tab-fg: #14425c;    
 
   --tab-active-bg: #d3eafc; 
   --tab-active-border: #91c7f3;
@@ -122,9 +122,10 @@ body.dark-mode-override {
   transition: box-shadow 0.2s;
 }
 
-/* Add bigger shadow while dragging */
+/* Add bigger shadow + higher z-index while dragging */
 #multitool-beast-wrapper.dragging {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  z-index: 9999999;
 }
 
 /* Tiny tab drag handle at top center */
@@ -141,13 +142,18 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
-/* The top bar with round buttons on top-right */
+/* The top bar with circle buttons on left, toggle on right */
 .mtb-top-bar {
   position: relative;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: 6px 8px;
+}
+
+.mtb-top-bar-left, .mtb-top-bar-right {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -240,7 +246,7 @@ body.dark-mode-override {
   transform: translateX(22px);
 }
 
-/* The header (with tealium logo + title), below top bar */
+/* The header (logo + title), below top bar */
 .mtb-header {
   display: flex;
   align-items: center;
@@ -319,19 +325,37 @@ body.dark-mode-override {
 .fieldRow .fw-bold {
   font-weight: 600;
 }
-.sway-btn {
-  background-color: #dce4ed;
-  border: 1px solid #c0c8d0;
-  color: #333;
+
+/* For text-based copy buttons */
+.sway-btn-text {
+  padding: 6px 12px;
+  border-radius: 12px;
+  background-color: var(--tab-bg);
+  color: var(--tab-fg);
+  border: 1px solid var(--tab-border);
+  cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s;
+  font-size: 14px;
+}
+.sway-btn-text:hover {
+  background-color: #eef7ff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* For icon-only copy buttons */
+.sway-btn-icon {
+  background-color: transparent;
+  border: 1px solid var(--tab-border);
+  color: var(--panel-fg);
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 2px 4px;
   cursor: pointer;
   font-size: 12px;
-  transition: background-color 0.15s;
+  transition: background-color 0.15s, box-shadow 0.15s;
 }
-.sway-btn:hover {
-  background-color: #bfc9d4;
-  color: #f9fafb;
+.sway-btn-icon:hover {
+  background-color: rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
 /* The open button (floating) at bottom-right corner of page */
@@ -539,6 +563,7 @@ body.dark-mode-override {
     });
   }
 
+  // Create a field row
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow";
@@ -562,7 +587,7 @@ body.dark-mode-override {
 
     if (withCopy) {
       const btn = document.createElement('button');
-      btn.className = "sway-btn sway-btn-xs";
+      btn.className = "sway-btn-icon"; // icon-only style
       btn.style.marginLeft = "8px";
       btn.innerHTML = `📋`;
       btn.title = "Copy";
@@ -577,6 +602,7 @@ body.dark-mode-override {
     return row;
   }
 
+  // Populate the Profile tab
   function populateProfileTab(container) {
     container.innerHTML = "";
 
@@ -599,8 +625,9 @@ body.dark-mode-override {
     // Copy account/profile button
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
-    copyAccBtn.className = "sway-btn sway-btn-xs";
+    copyAccBtn.className = "sway-btn-text"; // pastel tab-like
     copyAccBtn.style.marginTop = "8px";
+
     copyAccBtn.addEventListener('click', function() {
       const txt = accountVal + "/" + profileVal;
       navigator.clipboard.writeText(txt).then(function() {
@@ -608,38 +635,37 @@ body.dark-mode-override {
         setTimeout(function() { copyAccBtn.textContent = "Copy Account/Profile"; }, 2000);
       });
     });
-    secProfile.appendChild(copyAccBtn);
-    container.appendChild(secProfile);
 
-    // A "section" with copy actions
-    const secActions = document.createElement('div');
-    secActions.className = "mtb-section";
-
-    const copyRow = document.createElement('div');
-    copyRow.style.display = "flex";
-    copyRow.style.justifyContent = "space-between";
-    copyRow.style.marginBottom = "8px";
-
+    // Copy selected button
     const copyAllBtn = document.createElement('button');
     copyAllBtn.id = "copy-all-selected-btn";
-    copyAllBtn.className = "sway-btn sway-btn-xs";
+    copyAllBtn.className = "sway-btn-text"; // pastel tab-like
     copyAllBtn.textContent = "Copy Selected";
+    copyAllBtn.style.marginTop = "8px";
     copyAllBtn.addEventListener('click', copyAllSelected);
+
+    // Put them side by side
+    const copyRow = document.createElement('div');
+    copyRow.style.display = "flex";
+    copyRow.style.gap = "8px";
+    copyRow.style.marginTop = "8px";
+    copyRow.appendChild(copyAccBtn);
     copyRow.appendChild(copyAllBtn);
 
-    secActions.appendChild(copyRow);
+    secProfile.appendChild(copyRow);
 
+    // Include summary below
     const summaryDiv = document.createElement('div');
-    summaryDiv.style.marginBottom = "8px";
+    summaryDiv.style.marginTop = '8px';
     const sumCheck = document.createElement('input');
-    sumCheck.type = "checkbox";
-    sumCheck.id = "include-summary";
-    sumCheck.style.marginRight = "4px";
+    sumCheck.type = 'checkbox';
+    sumCheck.id = 'include-summary';
+    sumCheck.style.marginRight = '4px';
     summaryDiv.appendChild(sumCheck);
-    summaryDiv.appendChild(document.createTextNode("Include Summary"));
+    summaryDiv.appendChild(document.createTextNode('Include Summary'));
 
-    secActions.appendChild(summaryDiv);
-    container.appendChild(secActions);
+    secProfile.appendChild(summaryDiv);
+    container.appendChild(secProfile);
 
     // A "section" with recent tickets
     const secRecent = document.createElement('div');
@@ -666,7 +692,7 @@ body.dark-mode-override {
         tDiv.appendChild(a);
 
         const cpBtn = document.createElement('button');
-        cpBtn.className = "sway-btn sway-btn-xs";
+        cpBtn.className = "sway-btn-icon";
         cpBtn.style.marginLeft = "8px";
         cpBtn.innerHTML = `📋`;
         cpBtn.title = "Copy Link";
@@ -804,11 +830,15 @@ body.dark-mode-override {
     dragHandle.className = "drag-handle";
     wrapper.appendChild(dragHandle);
 
-    // Top bar (right side: up/down/close + theme toggle)
+    // Top bar
     const topBar = document.createElement('div');
     topBar.className = "mtb-top-bar";
 
-    // Round/cute circle buttons
+    // left container (circle buttons)
+    const topBarLeft = document.createElement('div');
+    topBarLeft.className = "mtb-top-bar-left";
+
+    // Up/down/close circle buttons
     const upBtn = document.createElement('button');
     upBtn.className = "circle-btn";
     upBtn.textContent = "↑";
@@ -832,7 +862,14 @@ body.dark-mode-override {
       if (openBtn) openBtn.style.display = "block";
     });
 
-    // Theme toggle
+    topBarLeft.appendChild(upBtn);
+    topBarLeft.appendChild(downBtn);
+    topBarLeft.appendChild(closeBtn);
+
+    // right container (theme toggle)
+    const topBarRight = document.createElement('div');
+    topBarRight.className = "mtb-top-bar-right";
+
     const toggleWrapper = document.createElement('div');
     toggleWrapper.className = "theme-toggle-wrapper";
     const toggleInput = document.createElement('input');
@@ -856,11 +893,11 @@ body.dark-mode-override {
     toggleWrapper.appendChild(toggleInput);
     toggleWrapper.appendChild(toggleLabel);
 
-    // Append all to top bar
-    topBar.appendChild(upBtn);
-    topBar.appendChild(downBtn);
-    topBar.appendChild(closeBtn);
-    topBar.appendChild(toggleWrapper);
+    topBarRight.appendChild(toggleWrapper);
+
+    // assemble top bar
+    topBar.appendChild(topBarLeft);
+    topBar.appendChild(topBarRight);
     wrapper.appendChild(topBar);
 
     // The header (logo + title)
