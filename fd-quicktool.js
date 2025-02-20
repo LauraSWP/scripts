@@ -1,20 +1,20 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.91
+// @version      1.92
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @downloadURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @match        *://*.freshdesk.com/a/tickets/*
-// @grant        
+// @grant        none
 // ==/UserScript==
 
 (function() {
   'use strict';
 
   /***********************************************
-   * Utility Functions
+   * Check if current page is a ticket page
    ***********************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
@@ -24,6 +24,9 @@
     return;
   }
 
+  /***********************************************
+   * Utility Functions
+   ***********************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/\/a\/tickets\/(\d+)/);
     return match ? match[1] : null;
@@ -73,6 +76,7 @@
     return tickets;
   }
 
+  // CARR is fetched from the company page by clicking the "show more" button.
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -119,7 +123,7 @@
   }
 
   /***********************************************
-   * Copy and Format Functions
+   * Copy & Format Functions
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -135,6 +139,7 @@
       jiraBtn.classList.add('active');
     }
   }
+
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(function(row) {
@@ -180,6 +185,7 @@
       }
     });
   }
+
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow mb-2 pb-2";
@@ -334,7 +340,7 @@
     initTheme();
     const isOpen = false; // initial state closed
       
-    // Create outer wrapper using Freshdesk classes (mimicking a widget)
+    // Create outer wrapper
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     // Fixed position: bottom 80px, right 20px; width 360px, min-width 200px
@@ -352,15 +358,15 @@
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
       
-    // Build UI inside the wrapper
+    /***** Build UI inside the widget ******/
       
-    // Header Bar (mimicking Freshdesk sidebar header)
+    // Header Bar (using Freshdesk sidebar header style)
     const headerBar = document.createElement('div');
     headerBar.className = "sidebar__title";
     headerBar.style.cursor = "move";
     headerBar.style.position = "relative";
     headerBar.style.padding = "5px 10px";
-    // Left: Dark mode toggle (native checkbox)
+    // Left: Dark mode toggle
     const headerLeft = document.createElement('span');
     headerLeft.className = "me-2";
     const nightToggle = document.createElement('input');
@@ -379,7 +385,7 @@
     const upBtn = document.createElement('button');
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
-    upBtn.className = "sidebar__action btn btn-xs";
+    upBtn.className = "btn btn-xs";
     upBtn.style.marginRight = "5px";
     upBtn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     headerRight.appendChild(upBtn);
@@ -387,7 +393,7 @@
     const downBtn = document.createElement('button');
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
-    downBtn.className = "sidebar__action btn btn-xs";
+    downBtn.className = "btn btn-xs";
     downBtn.style.marginRight = "5px";
     downBtn.addEventListener('click', function() { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
     headerRight.appendChild(downBtn);
@@ -395,7 +401,7 @@
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "×";
     closeBtn.title = "Close MultiTool Beast";
-    closeBtn.className = "sidebar__action btn btn-xs btn-danger";
+    closeBtn.className = "btn btn-xs btn-danger";
     closeBtn.addEventListener('click', function() {
       wrapper.style.display = "none";
       openBtn.style.display = "block";
@@ -420,7 +426,7 @@
     titleSection.appendChild(titleText);
     wrapper.appendChild(titleSection);
       
-    // Tabs Navigation (using native Freshdesk classes)
+    // Tabs Navigation
     const tabsNav = document.createElement('ul');
     tabsNav.className = "nav nav-tabs";
     // Profile Tab
@@ -555,7 +561,7 @@
     document.body.appendChild(wrapper);
     window._multitoolWrapper = wrapper;
   }
-    
+
   /***********************************************
    * Auto-update on URL change (every 3 seconds)
    ***********************************************/
@@ -572,31 +578,26 @@
   }, 3000);
     
   /***********************************************
-   * Initialize on DOM ready
+   * Open Button – a tab-style button fixed at bottom-right
    ***********************************************/
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { setTimeout(initTool, 3000); });
-  } else {
-    setTimeout(initTool, 3000);
-  }
-    
-  /***********************************************
-   * Open Button (outside the widget)
-   ***********************************************/
-  const isOpenGlobal = false;
-  const openBtn = document.createElement('span');
-  openBtn.className = "sidebar__action";
-  openBtn.textContent = "Open MultiTool Beast";
+  // The open button is now styled as a small tab with only the Tealium icon.
+  const openBtn = document.createElement('button');
   openBtn.style.position = "fixed";
-  openBtn.style.bottom = "20px";
-  openBtn.style.right = "20px";
+  openBtn.style.bottom = "0";
+  openBtn.style.right = "0";
   openBtn.style.zIndex = "10000";
+  openBtn.style.borderTopLeftRadius = "0";
+  openBtn.style.borderTopRightRadius = "0";
+  openBtn.style.borderBottomLeftRadius = "4px";
+  openBtn.style.borderBottomRightRadius = "4px";
+  openBtn.style.padding = "5px";
   openBtn.style.backgroundColor = "#fff";
   openBtn.style.border = "1px solid #ccc";
-  openBtn.style.padding = "5px 10px";
-  openBtn.style.borderRadius = "4px";
+  openBtn.style.boxShadow = "0 -2px 4px rgba(0,0,0,0.2)";
   openBtn.title = "Open MultiTool Beast";
-  openBtn.style.display = isOpenGlobal ? "none" : "block";
+  // Use the Tealium icon as the sole content:
+  openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" style="width:32px;height:32px;">`;
+  openBtn.style.display = "none";
   openBtn.addEventListener('click', function() {
     if (window._multitoolWrapper) {
       window._multitoolWrapper.style.display = "block";
@@ -609,6 +610,19 @@
       populateProfileTab(profileFieldsContainer);
     }
   });
+  // Show the open button if the widget is closed (default state)
+  if (localStorage.getItem("multitool_open") !== "true") {
+    openBtn.style.display = "block";
+  }
   document.body.appendChild(openBtn);
+    
+  /***********************************************
+   * Initialize on DOM ready
+   ***********************************************/
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(initTool, 3000); });
+  } else {
+    setTimeout(initTool, 3000);
+  }
     
 })();
