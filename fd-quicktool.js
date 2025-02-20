@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      3.2
+// @version      3.3
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -24,18 +24,18 @@
    * JIRA-SPECIFIC CODE
    ***************************************************/
   if (isJira) {
-    console.log("[MultiTool Script] Jira domain detected.");
+    console.log("[MultiTool] Jira domain detected.");
     if (window.location.href.includes("CreateIssue!default.jspa")) {
-      console.log("[MultiTool Script] Detected Jira Create Issue page. Preparing to auto-click 'Next' and fill customfield_10652.");
+      console.log("[MultiTool] Detected Jira Create Issue page. Preparing to auto-click 'Next' and pre-fill customfield_10652.");
       
       function autoAdvanceThenFill() {
         const nextBtn = document.querySelector('#issue-create-submit[name="Next"]');
         if (nextBtn) {
-          console.log("[MultiTool Script] Found 'Next' button; clicking it...");
+          console.log("[MultiTool] 'Next' button found; clicking it...");
           nextBtn.click();
           setTimeout(fillCustomField, 2000);
         } else {
-          console.log("[MultiTool Script] 'Next' button not found; attempting to fill customfield_10652...");
+          console.log("[MultiTool] 'Next' button not found; attempting to fill customfield_10652...");
           fillCustomField();
         }
       }
@@ -44,29 +44,28 @@
         const acctField = document.getElementById("customfield_10652-field");
         if (acctField) {
           const storedVal = localStorage.getItem("latest_account_profile") || "";
-          console.log("[MultiTool Script] Prefilling customfield_10652 with:", storedVal);
+          console.log("[MultiTool] Pre-filling customfield_10652 with:", storedVal);
           acctField.value = storedVal;
         } else {
-          console.log("[MultiTool Script] customfield_10652-field not found. It may not be visible yet.");
+          console.log("[MultiTool] customfield_10652-field not found. It may not be visible yet.");
         }
       }
       
       setTimeout(autoAdvanceThenFill, 1500);
     }
-    // Do not run the Freshdesk MultiTool UI on Jira pages.
-    return;
+    return; // Exit on Jira pages so the Freshdesk UI is not built.
   }
 
   /***************************************************
    * FRESHDESK MULTITOOL CODE
    ***************************************************/
-  if (!isFreshdesk) return; // Safety check
-
+  if (!isFreshdesk) return;
+  
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
   }
   if (!isTicketPage()) {
-    console.log("[MultiTool Script] Not a Freshdesk ticket page. Exiting.");
+    console.log("[MultiTool] Not a Freshdesk ticket page. Exiting.");
     return;
   }
 
@@ -85,13 +84,13 @@
    * SVG ICONS
    ***************************************************/
   const moonIconSVG = `
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
   <path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9 9 0 1 0 20.354 15.354z"></path>
 </svg>`;
   
   const sunIconSVG = `
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
   <circle cx="12" cy="12" r="5"></circle>
   <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -123,18 +122,14 @@
 </svg>`;
 
   /***************************************************
-   * CSS INJECTION
+   * CSS INJECTION (Full Styles)
    ***************************************************/
   function injectCSS() {
     if (document.getElementById("multitool-beast-css")) return;
     const style = document.createElement("style");
     style.id = "multitool-beast-css";
     style.innerHTML = `
-/* ---------------------------
-   Pastel Sway Material Panel Styles
-   ---------------------------
-   Fixed height: 550px; non-resizable, vertical scroll only.
-*/
+/* Pastel Sway Material Panel Styles */
 
 /* Color Variables */
 :root {
@@ -363,7 +358,7 @@ body.dark-mode-override {
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-/* Tab Content Containers */
+/* Tab Content */
 .tab-content {
   display: none;
 }
@@ -390,7 +385,7 @@ body.dark-mode-override {
   border-bottom: none;
 }
 
-/* Account Value Styling */
+/* Fresh Value Styling */
 .fresh-value {
   background-color: rgba(0,0,0,0.05);
   padding: 2px 4px;
@@ -492,7 +487,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * TAB SWITCHING FUNCTION
+   * TAB SWITCHING
    ***************************************************/
   function showTab(which) {
     ["profile", "pinned", "settings"].forEach(id => {
@@ -525,7 +520,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * PROFILE TAB: Populate & Save Data for Jira
+   * PROFILE TAB: POPULATE & SAVE DATA FOR JIRA
    ***************************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
@@ -533,7 +528,6 @@ body.dark-mode-override {
     const ticketId = ticketMatch ? ticketMatch[1] : "N/A";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
-    // Save for Jira usage
     localStorage.setItem("latest_account_profile", accountVal + "/" + profileVal);
 
     const sec = document.createElement("div");
@@ -558,7 +552,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * PINNED TAB: Single Jira Button
+   * PINNED TAB: SINGLE JIRA BUTTON
    ***************************************************/
   function buildPinnedTabContent(container) {
     container.innerHTML = "";
@@ -577,7 +571,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * SETTINGS TAB: Keep Open & Font Size Slider
+   * SETTINGS TAB: KEEP OPEN & FONT SIZE SLIDER
    ***************************************************/
   function buildSettingsContent(container) {
     container.innerHTML = "";
@@ -657,21 +651,18 @@ body.dark-mode-override {
     let initFontSize = loadPref("mtb_fontSize", 14);
     wrapper.style.fontSize = initFontSize + "px";
 
-    // Restore saved position
     const pos = loadPref("boxPosition", null);
     if (pos && pos.top && pos.left) {
       wrapper.style.top = pos.top;
       wrapper.style.left = pos.left;
     }
 
-    // Display state based on preference
     if (loadPref("keepOpen", false)) {
       savePref("multitool_open", true);
     }
     const isOpen = loadPref("multitool_open", false);
     wrapper.style.display = isOpen ? "block" : "none";
 
-    // Add drag handle
     const dragHandle = document.createElement("div");
     dragHandle.className = "drag-handle";
     wrapper.appendChild(dragHandle);
@@ -706,11 +697,9 @@ body.dark-mode-override {
       document.addEventListener("mouseup", closeDrag);
     });
 
-    // Top Bar
     const topBar = document.createElement("div");
     topBar.className = "mtb-top-bar";
 
-    // Left: Theme toggle
     const topBarLeft = document.createElement("div");
     topBarLeft.className = "mtb-top-bar-left";
     const toggleWrapper = document.createElement("div");
@@ -737,7 +726,6 @@ body.dark-mode-override {
     toggleWrapper.appendChild(toggleLabel);
     topBarLeft.appendChild(toggleWrapper);
 
-    // Right: Up, Down, Close buttons
     const topBarRight = document.createElement("div");
     topBarRight.className = "mtb-top-bar-right";
     const upBtn = document.createElement("button");
@@ -763,12 +751,10 @@ body.dark-mode-override {
     topBarRight.appendChild(upBtn);
     topBarRight.appendChild(downBtn);
     topBarRight.appendChild(closeBtn);
-
     topBar.appendChild(topBarLeft);
     topBar.appendChild(topBarRight);
     wrapper.appendChild(topBar);
 
-    // Header with Tealium logo and gradient
     const header = document.createElement("div");
     header.className = "mtb-header";
     const tealiumLogo = document.createElement("img");
@@ -781,7 +767,6 @@ body.dark-mode-override {
     header.appendChild(h3);
     wrapper.appendChild(header);
 
-    // Main Content Area with Tabs
     const content = document.createElement("div");
     content.className = "mtb-content";
     const tabsUL = document.createElement("ul");
@@ -827,15 +812,12 @@ body.dark-mode-override {
     content.appendChild(pinnedContent);
     content.appendChild(settingsContent);
     wrapper.appendChild(content);
-
     document.body.appendChild(wrapper);
 
-    // Populate Tabs
     populateProfileTab(profileContent);
     buildPinnedTabContent(pinnedContent);
     buildSettingsContent(settingsContent);
 
-    // Create floating "open" button if panel is closed
     const openBtn = document.createElement("button");
     openBtn.id = "sway-open-btn";
     openBtn.style.position = "fixed";
@@ -856,8 +838,11 @@ body.dark-mode-override {
       openBtn.style.display = "none";
     }
     openBtn.addEventListener("click", function() {
-      wrapper.style.display = "block";
-      savePref("multitool_open", true);
+      const wrapper = document.getElementById("multitool-beast-wrapper");
+      if (wrapper) {
+        wrapper.style.display = "block";
+        savePref("multitool_open", true);
+      }
       openBtn.style.display = "none";
       showTab("profile");
       populateProfileTab(profileContent);
@@ -866,7 +851,7 @@ body.dark-mode-override {
   }
 
   /***************************************************
-   * UPDATE CONTENT ON TICKET CHANGE
+   * UPDATE ON TICKET CHANGE
    ***************************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/\/a\/tickets\/(\d+)/);
@@ -885,7 +870,7 @@ body.dark-mode-override {
   }, 3000);
 
   /***************************************************
-   * INITIALIZATION ON DOM READY
+   * INITIALIZE ON DOM READY
    ***************************************************/
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function() {
@@ -894,23 +879,4 @@ body.dark-mode-override {
   } else {
     setTimeout(initTool, 1500);
   }
-
-  // MAIN INIT FUNCTION
-  function initTool() {
-    injectCSS();
-    initTheme();
-    // Build the MultiTool UI
-    initTool = function() {}; // Prevent reinitialization if needed
-    // Call our function to create the UI
-    initToolUI();
-  }
-
-  // Separate function to build the UI (called by initTool)
-  function initToolUI() {
-    // Create the UI as defined above (this is the same code inside initTool() we already wrote)
-    // For clarity, we already built the UI in the code above. The entire UI construction is inside initTool().
-    // (We simply call initTool() here as it has already constructed the UI.)
-    // In this implementation, all UI building happens in the initTool() function above.
-  }
-
 })();
