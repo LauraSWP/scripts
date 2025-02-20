@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.80
+// @version      1.81
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -15,38 +15,40 @@
   'use strict';
 
   /***********************************************
-   * 0) Load Tailwind CSS v4.0.7 & Tailwind Library Inline
+   * 0) Load Tailwind CSS v4.0.7 Inline via GM_xmlhttpRequest
    ***********************************************/
-  function loadExternalFile(url, type, id, callback) {
-    GM_xmlhttpRequest({
-      method: "GET",
-      url: url,
-      onload: function(response) {
-        if (response.status === 200) {
-          if (type === "css") {
+  function loadTailwindCSS() {
+    const url = "https://cdn.jsdelivr.net/npm/tailwindcss@4.0.7/index.min.css";
+    if (typeof GM_xmlhttpRequest !== 'undefined') {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        onload: function(response) {
+          if (response.status === 200) {
             const style = document.createElement('style');
-            style.id = id;
+            style.id = "tailwind-inline";
             style.textContent = response.responseText;
             document.head.appendChild(style);
-            console.log("[MultiTool Beast] Loaded CSS:", url);
-          } else if (type === "js") {
-            const script = document.createElement('script');
-            script.id = id;
-            script.textContent = response.responseText;
-            document.head.appendChild(script);
-            console.log("[MultiTool Beast] Loaded JS:", url);
+            console.log("[MultiTool Beast] Tailwind CSS v4.0.7 loaded inline.");
+          } else {
+            console.error("[MultiTool Beast] Failed to load Tailwind CSS, status:", response.status);
           }
-          if (callback) callback();
-        } else {
-          console.error("[MultiTool Beast] Failed to load", url, "status:", response.status);
         }
-      }
-    });
+      });
+    } else {
+      fetch(url)
+        .then(resp => resp.text())
+        .then(text => {
+          const style = document.createElement('style');
+          style.id = "tailwind-inline";
+          style.textContent = text;
+          document.head.appendChild(style);
+          console.log("[MultiTool Beast] Tailwind CSS loaded via fetch inline.");
+        })
+        .catch(e => console.error("[MultiTool Beast] Failed to load Tailwind CSS via fetch:", e));
+    }
   }
-  // Load Tailwind library (v4.0.7) from jsDelivr
-  loadExternalFile("https://cdn.jsdelivr.net/npm/tailwindcss@4.0.7/dist/lib.min.js", "js", "tailwind-lib-inline");
-  // Load Tailwind CSS (v4.0.7)
-  loadExternalFile("https://cdn.jsdelivr.net/npm/tailwindcss@4.0.7/index.min.css", "css", "tailwind-inline");
+  loadTailwindCSS();
 
   /***********************************************
    * 1) Custom Dark Mode Overrides
@@ -56,10 +58,8 @@ html.dark body {
   background-color: #121212 !important;
   color: #e0e0e0 !important;
 }
-html.dark .box {
+html.dark .bg-white {
   background-color: #1e1e1e !important;
-  border-color: #333 !important;
-  color: #e0e0e0 !important;
 }
 html.dark .border-gray-300 {
   border-color: #444 !important;
@@ -136,23 +136,27 @@ html.dark .bg-blue-600 {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: Appearance via our switch
+   * 4) Dark Mode Toggle: (Using our custom switch)
    ***********************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
     if (stored === 'theme-dark') {
       document.documentElement.classList.add('dark');
+      applyDarkModeCSS();
     } else {
       document.documentElement.classList.remove('dark');
+      removeDarkModeCSS();
     }
   }
   function toggleTheme() {
     if (document.documentElement.classList.contains('dark')) {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('fdTheme', 'theme-light');
+      removeDarkModeCSS();
     } else {
       document.documentElement.classList.add('dark');
       localStorage.setItem('fdTheme', 'theme-dark');
+      applyDarkModeCSS();
     }
   }
 
@@ -478,7 +482,7 @@ html.dark .bg-blue-600 {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.43.1) with Tailwind CSS inline.");
+    console.log("[MultiTool Beast] Initializing (v1.44.1) with Tailwind CSS inline.");
     initTheme();
     const isOpen = false;
     
@@ -523,7 +527,7 @@ html.dark .bg-blue-600 {
     topBar.id = "multitool-topbar";
     topBar.className = "flex justify-between items-center mb-2 px-2";
     const topLeft = document.createElement('div');
-    // Night mode toggle switch – styled below via custom classes (inline CSS in our HTML)
+    // Night mode toggle switch – our custom switch (we’ll style via inline CSS in our layout)
     const nightLabel = document.createElement('label');
     nightLabel.className = "switch inline-block";
     const nightInput = document.createElement('input');
@@ -645,7 +649,7 @@ html.dark .bg-blue-600 {
     tabProfile.appendChild(profileContent);
     wrapper.appendChild(tabProfile);
     
-    // Pinned Tab Content (Quick Access Grid)
+    // Pinned Tab Content (Quick Access Grid) – appears in the "Pinned" tab only
     const tabPinned = document.createElement('div');
     tabPinned.id = "tab-content-pinned";
     tabPinned.className = "multitool-tab-content hidden"; // initially hidden
@@ -690,7 +694,7 @@ html.dark .bg-blue-600 {
     setFormat('slack');
     showTab('profile');
     initTheme();
-    console.log("[MultiTool Beast] Loaded (v1.43.1) with Tailwind CSS inline.");
+    console.log("[MultiTool Beast] Loaded (v1.44.1) with Tailwind CSS inline.");
   }
 
   /***********************************************
