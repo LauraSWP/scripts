@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.85
+// @version      1.86
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -90,7 +90,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 3) Inline SVG Icons (person, pin, copy)
+   * 3) Inline SVG Icons
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -282,7 +282,7 @@ html.dark .button {
         }
       }
     });
-    const summaryCheck = shadow.getElementById('include-summary');
+    const summaryCheck = window._multitoolShadow.getElementById('include-summary');
     if (summaryCheck && summaryCheck.checked) {
       const summaryText = getSummary();
       if (summaryText) {
@@ -293,7 +293,7 @@ html.dark .button {
         }
       }
     }
-    const copyBtn = shadow.getElementById('copy-all-selected-btn');
+    const copyBtn = window._multitoolShadow.getElementById('copy-all-selected-btn');
     navigator.clipboard.writeText(copyText).then(() => {
       if (copyBtn) {
         copyBtn.textContent = "Copied Selected!";
@@ -464,12 +464,11 @@ html.dark .button {
     loadBulmaCSS(function(bulmaCSS) {
       console.log("[MultiTool Beast] Initializing (v1.44.2) with Bulma in Shadow DOM.");
       initTheme();
-      const isOpen = false;
+      const isOpen = false; // Force initial state to closed for testing
       
-      // Create outer wrapper with fixed position as in Bootstrap version
+      // Create outer wrapper with fixed position (bottom:80px, right:20px)
       const wrapper = document.createElement('div');
       wrapper.id = "multitool-beast-wrapper";
-      // Fixed position: bottom 80px, right 20px; min-width 200px
       wrapper.style.position = "fixed";
       wrapper.style.bottom = "80px";
       wrapper.style.right = "20px";
@@ -483,19 +482,19 @@ html.dark .button {
       wrapper.style.display = isOpen ? "block" : "none";
       localStorage.setItem("multitool_open", isOpen ? "true" : "false");
       
-      // Attach shadow DOM to wrapper (to isolate Bulma)
+      // Attach shadow DOM to wrapper
       const shadow = wrapper.attachShadow({ mode: "open" });
-      window._multitoolShadow = shadow; // store globally for access in other functions
+      window._multitoolShadow = shadow; // For external access
       
-      // Create a style element in shadow with Bulma CSS + dark mode overrides
+      // Inject Bulma CSS and dark overrides into shadow
       const styleEl = document.createElement('style');
       styleEl.textContent = bulmaCSS + "\n" + darkModeOverrides;
       shadow.appendChild(styleEl);
       
-      // Create a container div for our UI elements (inside shadow)
+      // Create container for UI elements inside shadow DOM
       const container = document.createElement('div');
-
-      // Top Bar
+      
+      // Top Bar (with dark mode toggle and up/down/close buttons)
       const topBar = document.createElement('div');
       topBar.id = "multitool-topbar";
       topBar.className = "level mb-2 px-2";
@@ -539,7 +538,7 @@ html.dark .button {
       topBar.appendChild(levelRight);
       container.appendChild(topBar);
       
-      // Header
+      // Header (icon and title)
       const headerArea = document.createElement('div');
       headerArea.className = "has-text-centered mb-2";
       const headerIcon = document.createElement('img');
@@ -626,7 +625,7 @@ html.dark .button {
       // Pinned Tab Content (Quick Access Grid)
       const tabPinned = document.createElement('div');
       tabPinned.id = "tab-content-pinned";
-      tabPinned.className = "multitool-tab-content hidden"; // initially hidden
+      tabPinned.className = "multitool-tab-content hidden";
       const pinnedContent = document.createElement('div');
       pinnedContent.className = "content";
       pinnedContent.innerHTML = `<p class="has-text-weight-bold mb-2 is-size-7">Quick Access Grid:</p>`;
@@ -639,7 +638,11 @@ html.dark .button {
       // Draggable handle (a small button above the header)
       const dragHandleBtn = document.createElement('button');
       dragHandleBtn.innerHTML = "✋";
-      dragHandleBtn.className = "button is-light is-small absolute -top-6 left-1/2 transform -translate-x-1/2 cursor-move";
+      dragHandleBtn.className = "button is-light is-small absolute";
+      dragHandleBtn.style.top = "-24px"; // slightly above header
+      dragHandleBtn.style.left = "50%";
+      dragHandleBtn.style.transform = "translateX(-50%)";
+      dragHandleBtn.style.cursor = "move";
       shadow.appendChild(dragHandleBtn);
       dragHandleBtn.onmousedown = function(e) {
         e.preventDefault();
@@ -668,7 +671,7 @@ html.dark .button {
       setFormat('slack');
       showTab('profile');
       initTheme();
-      console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma CSS inline in Shadow DOM.");
+      console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma in Shadow DOM.");
       
       document.body.appendChild(wrapper);
       window._multitoolWrapper = wrapper;
@@ -700,5 +703,40 @@ html.dark .button {
   } else {
     setTimeout(initTool, 3000);
   }
+  
+  /***********************************************
+   * 12) Open Button (outside Shadow DOM)
+   ***********************************************/
+  // Always force initial state to closed (for testing)
+  const isOpenGlobal = false;
+  const openBtn = document.createElement('button');
+  openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="image is-32x32">`;
+  openBtn.style.position = "fixed";
+  openBtn.style.bottom = "20px";
+  openBtn.style.right = "20px";
+  openBtn.style.zIndex = "10000";
+  // Ensure visibility with explicit inline styles
+  openBtn.style.backgroundColor = "#fff";
+  openBtn.style.border = "2px solid #000";
+  openBtn.style.padding = "5px";
+  openBtn.style.borderRadius = "4px";
+  openBtn.title = "Open MultiTool Beast";
+  openBtn.style.display = isOpenGlobal ? "none" : "block";
+  openBtn.className = "button is-primary is-small";
+  openBtn.addEventListener('click', () => {
+    if (window._multitoolWrapper) {
+      window._multitoolWrapper.style.display = "block";
+    }
+    openBtn.style.display = "none";
+    localStorage.setItem("multitool_open", "true");
+    showTab('profile');
+    if (window._multitoolWrapper && window._multitoolWrapper.shadowRoot) {
+      const profileFieldsContainer = window._multitoolWrapper.shadowRoot.getElementById('profile-fields-container');
+      if (profileFieldsContainer) {
+        populateProfileTab(profileFieldsContainer);
+      }
+    }
+  });
+  document.body.appendChild(openBtn);
   
 })();
