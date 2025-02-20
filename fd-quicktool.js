@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      4.2
+// @version      1.1
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -40,7 +40,7 @@ if (isJira) {
     
     // Function to wait for the Account/Profile input field and fill it in
     function waitForAccountInput() {
-      let acctInput = document.getElementById("customfield_10652-field");
+      let acctInput = document.getElementById("customfield_10652");
       if (acctInput) {
         const latestValue = localStorage.getItem("latest_account_profile") || "";
         acctInput.value = latestValue;
