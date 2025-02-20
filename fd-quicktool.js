@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.89
+// @version      1.90
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -15,24 +15,24 @@
   'use strict';
 
   /***********************************************
-   * 0) Inject Bootstrap 5 CSS & JS into document head
+   * 0) Load Bootstrap 5.3.3 CSS Inline via GM_xmlhttpRequest
    ***********************************************/
-  function injectBootstrap() {
-    // Bootstrap CSS
-    const link = document.createElement("link");
-    link.href = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css";
-    link.rel = "stylesheet";
-    link.integrity = "sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH";
-    link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-    // Bootstrap JS bundle
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js";
-    script.integrity = "sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz";
-    script.crossOrigin = "anonymous";
-    document.head.appendChild(script);
+  function loadBootstrapCSS(callback) {
+    const url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css";
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: url,
+      onload: function(response) {
+        if (response.status === 200) {
+          console.log("[MultiTool Beast] Bootstrap 5 CSS loaded inline.");
+          callback(response.responseText);
+        } else {
+          console.error("[MultiTool Beast] Failed to load Bootstrap 5 CSS, status:", response.status);
+          callback("");
+        }
+      }
+    });
   }
-  injectBootstrap();
 
   /***********************************************
    * 1) Custom Dark Mode Overrides for Bootstrap 5
@@ -68,7 +68,7 @@ body.dark a {
   }
   function removeDarkModeCSS() {
     let style = document.getElementById("dark-mode-overrides");
-    if (style) style.remove();
+    if (style) style.parentNode.removeChild(style);
   }
 
   /***********************************************
@@ -97,7 +97,44 @@ body.dark a {
   }
 
   /***********************************************
-   * 3) Extract Ticket ID from URL
+   * 3) Utility: showTab (switch between "Profile" and "Pinned" tabs)
+   ***********************************************/
+  function showTab(which) {
+    document.querySelectorAll('.multitool-tab-content').forEach(function(el) {
+      el.style.display = 'none';
+    });
+    document.querySelectorAll('.multitool-tab-item').forEach(function(el) {
+      el.classList.remove('active');
+    });
+    if (which === 'profile') {
+      document.getElementById('tab-content-profile').style.display = 'block';
+      document.getElementById('tab-btn-profile').classList.add('active');
+    } else {
+      document.getElementById('tab-content-pinned').style.display = 'block';
+      document.getElementById('tab-btn-pinned').classList.add('active');
+    }
+  }
+
+  /***********************************************
+   * 4) Inline SVG Icons
+   ***********************************************/
+  const personIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+  <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
+</svg>`;
+  const pinIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
+</svg>`;
+  const copyIconSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+  <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
+  <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
+</svg>`;
+
+  /***********************************************
+   * 5) Extract Ticket ID (from URL)
    ***********************************************/
   function extractTicketId() {
     const match = window.location.pathname.match(/(?:\/a)?\/tickets\/(\d+)/);
@@ -106,7 +143,7 @@ body.dark a {
   let currentTicketId = extractTicketId();
 
   /***********************************************
-   * 4) Helper Functions: getFieldValue, getSummary, getRecentTickets, fetchCARR
+   * 6) Helper Functions: getFieldValue, getSummary, getRecentTickets, fetchCARR
    ***********************************************/
   function getFieldValue(el) {
     if (!el) return "";
@@ -200,7 +237,7 @@ body.dark a {
   }
 
   /***********************************************
-   * 5) Slack/JIRA Toggle & "Copy Selected" Functionality
+   * 7) Slack/JIRA Toggle & "Copy Selected" Functionality
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -309,7 +346,7 @@ body.dark a {
   }
     
   /***********************************************
-   * 6) Build Pinned Tab Content (Quick Access Grid)
+   * 8) Build Pinned Tab Content (Quick Access Grid)
    ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
@@ -328,7 +365,7 @@ body.dark a {
       btn.style.cursor = "pointer";
       btn.addEventListener('click', function() { window.open(item.link, '_blank'); });
       const cardBody = document.createElement('div');
-      cardBody.className = "card-body";
+      cardBody.className = "card-body p-2";
       cardBody.innerHTML = `<div style="font-size: 24px;">${item.icon}</div><div>${item.label}</div>`;
       btn.appendChild(cardBody);
       col.appendChild(btn);
@@ -338,7 +375,7 @@ body.dark a {
   }
     
   /***********************************************
-   * 7) Populate Profile Tab (Ticket/Field Info)
+   * 9) Populate Profile Tab (Ticket/Field Info)
    ***********************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
@@ -418,7 +455,7 @@ body.dark a {
   }
     
   /***********************************************
-   * 8) Build Entire Tool Layout Using Bootstrap 5
+   * 10) Build Entire Tool Layout Using Bootstrap 5
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
@@ -430,9 +467,10 @@ body.dark a {
       initTheme();
       const isOpen = false; // initial state closed
       
-      // Create outer wrapper (Bootstrap card)
+      // Create outer wrapper (card)
       const wrapper = document.createElement('div');
       wrapper.id = "multitool-beast-wrapper";
+      // Fixed position: bottom 80px, right 20px; width 360px, min-width 200px
       wrapper.style.position = "fixed";
       wrapper.style.bottom = "80px";
       wrapper.style.right = "20px";
@@ -442,11 +480,12 @@ body.dark a {
       wrapper.style.minHeight = "200px";
       wrapper.style.resize = "both";
       wrapper.style.overflow = "auto";
+      // Use Bootstrap 5 card classes for appearance
       wrapper.className = "card";
       wrapper.style.display = isOpen ? "block" : "none";
       localStorage.setItem("multitool_open", isOpen ? "true" : "false");
       
-      // Append Bootstrap CSS inline if not present
+      // Append Bootstrap CSS inline if not already present
       let bsStyle = document.getElementById("bootstrap-inline");
       if (!bsStyle) {
         bsStyle = document.createElement("style");
@@ -455,37 +494,39 @@ body.dark a {
         document.head.appendChild(bsStyle);
       }
       
-      // Card Header (draggable)
+      // Build UI inside the card
+      
+      // Card Header: draggable top bar with dark mode toggle, scroll buttons, close button
       const cardHeader = document.createElement('div');
       cardHeader.className = "card-header";
       cardHeader.style.cursor = "move";
-      // Left side: dark mode toggle
+      // Left side: dark mode toggle switch
       const headerLeft = document.createElement('div');
-      headerLeft.className = "d-inline";
+      headerLeft.className = "d-flex align-items-center";
       const nightLabel = document.createElement('label');
-      nightLabel.className = "form-check form-switch mb-0";
+      nightLabel.className = "form-check form-switch mb-0 me-2";
       const nightInput = document.createElement('input');
-      nightInput.className = "form-check-input";
       nightInput.type = "checkbox";
+      nightInput.className = "form-check-input";
       nightInput.id = "slider-top";
       nightLabel.appendChild(nightInput);
-      nightLabel.insertAdjacentHTML('beforeend', ' Dark');
+      nightLabel.insertAdjacentHTML('beforeend', " Dark");
       nightInput.addEventListener('change', toggleTheme);
       headerLeft.appendChild(nightLabel);
       cardHeader.appendChild(headerLeft);
-      // Right side: scroll up/down and close
+      // Right side: up, down, close buttons
       const headerRight = document.createElement('div');
-      headerRight.className = "ms-auto";
+      headerRight.className = "ms-auto d-flex align-items-center";
       const upBtn = document.createElement('button');
       upBtn.textContent = "↑";
       upBtn.title = "Scroll to top";
-      upBtn.className = "btn btn-sm btn-secondary me-1";
+      upBtn.className = "btn btn-sm btn-outline-primary me-1";
       upBtn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
       headerRight.appendChild(upBtn);
       const downBtn = document.createElement('button');
       downBtn.textContent = "↓";
       downBtn.title = "Scroll to bottom";
-      downBtn.className = "btn btn-sm btn-secondary me-1";
+      downBtn.className = "btn btn-sm btn-outline-primary me-1";
       downBtn.addEventListener('click', function() { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
       headerRight.appendChild(downBtn);
       const closeBtn = document.createElement('button');
@@ -501,7 +542,7 @@ body.dark a {
       cardHeader.appendChild(headerRight);
       wrapper.appendChild(cardHeader);
       
-      // Card Body: Header (icon + title)
+      // Card Body: header with icon and title
       const cardBodyHeader = document.createElement('div');
       cardBodyHeader.className = "card-body text-center";
       const headerIcon = document.createElement('img');
@@ -509,57 +550,58 @@ body.dark a {
       headerIcon.style.width = "32px";
       headerIcon.style.height = "32px";
       headerIcon.className = "me-2";
-      const headerTxt = document.createElement('h5');
-      headerTxt.className = "card-title mb-0";
+      const headerTxt = document.createElement('span');
       headerTxt.textContent = "MultiTool Beast";
+      headerTxt.className = "h5 fw-bold";
       cardBodyHeader.appendChild(headerIcon);
       cardBodyHeader.appendChild(headerTxt);
       wrapper.appendChild(cardBodyHeader);
       
-      // Tabs Navigation using Bootstrap Nav Tabs
+      // Nav Tabs
       const navTabs = document.createElement('ul');
       navTabs.className = "nav nav-tabs";
+      // Profile Tab
       const liProfile = document.createElement('li');
-      liProfile.className = "nav-item";
+      liProfile.className = "nav-item multitool-tab-item";
+      liProfile.id = "tab-btn-profile";
       const aProfile = document.createElement('a');
       aProfile.className = "nav-link active";
       aProfile.href = "#";
       aProfile.innerHTML = personIconSVG + " Profile";
-      aProfile.addEventListener('click', function(e) {
-        e.preventDefault();
-        showTab('profile');
-      });
+      aProfile.addEventListener('click', function(e) { e.preventDefault(); showTab('profile'); });
       liProfile.appendChild(aProfile);
       navTabs.appendChild(liProfile);
+      // Pinned Tab
       const liPinned = document.createElement('li');
-      liPinned.className = "nav-item";
+      liPinned.className = "nav-item multitool-tab-item";
+      liPinned.id = "tab-btn-pinned";
       const aPinned = document.createElement('a');
       aPinned.className = "nav-link";
       aPinned.href = "#";
       aPinned.innerHTML = pinIconSVG + " Pinned";
-      aPinned.addEventListener('click', function(e) {
-        e.preventDefault();
-        showTab('pinned');
-      });
+      aPinned.addEventListener('click', function(e) { e.preventDefault(); showTab('pinned'); });
       liPinned.appendChild(aPinned);
       navTabs.appendChild(liPinned);
       wrapper.appendChild(navTabs);
       
       // Tab Content: Profile
-      const tabProfileContent = document.createElement('div');
-      tabProfileContent.id = "tab-content-profile";
-      tabProfileContent.style.display = "block";
-      const profileContentDiv = document.createElement('div');
-      profileContentDiv.className = "mt-2";
+      const tabContentProfile = document.createElement('div');
+      tabContentProfile.id = "tab-content-profile";
+      tabContentProfile.className = "multitool-tab-content";
+      tabContentProfile.style.display = "block";
+      const profileCard = document.createElement('div');
+      profileCard.className = "card";
+      const profileCardBody = document.createElement('div');
+      profileCardBody.className = "card-body";
       // Top row: Copy Selected and Slack/JIRA toggle
-      const topBodyRowProfile = document.createElement('div');
-      topBodyRowProfile.className = "d-flex justify-content-between align-items-center mb-2";
+      const topRow = document.createElement('div');
+      topRow.className = "d-flex justify-content-between mb-2";
       const copyAllBtn = document.createElement('button');
       copyAllBtn.id = "copy-all-selected-btn";
       copyAllBtn.textContent = "Copy Selected";
       copyAllBtn.className = "btn btn-sm btn-info";
       copyAllBtn.addEventListener('click', copyAllSelected);
-      topBodyRowProfile.appendChild(copyAllBtn);
+      topRow.appendChild(copyAllBtn);
       const formatGroup = document.createElement('div');
       formatGroup.className = "btn-group";
       const slackBtn = document.createElement('button');
@@ -576,46 +618,50 @@ body.dark a {
       jiraBtn.addEventListener('click', function() { setFormat('jira'); });
       formatGroup.appendChild(slackBtn);
       formatGroup.appendChild(jiraBtn);
-      topBodyRowProfile.appendChild(formatGroup);
-      profileContentDiv.appendChild(topBodyRowProfile);
+      topRow.appendChild(formatGroup);
+      profileCardBody.appendChild(topRow);
       // Summary checkbox
-      const summaryRow = document.createElement('div');
-      summaryRow.className = "form-check";
+      const summaryDiv = document.createElement('div');
+      summaryDiv.className = "form-check mb-2";
       const sumCheck = document.createElement('input');
       sumCheck.type = "checkbox";
       sumCheck.id = "include-summary";
-      sumCheck.className = "form-check-input me-2";
-      summaryRow.appendChild(sumCheck);
+      sumCheck.className = "form-check-input";
       const sumLbl = document.createElement('label');
       sumLbl.htmlFor = "include-summary";
       sumLbl.className = "form-check-label";
-      sumLbl.textContent = "Include Summary";
-      summaryRow.appendChild(sumLbl);
-      profileContentDiv.appendChild(summaryRow);
+      sumLbl.textContent = " Include Summary";
+      summaryDiv.appendChild(sumCheck);
+      summaryDiv.appendChild(sumLbl);
+      profileCardBody.appendChild(summaryDiv);
       // Container for profile fields
       const profileFieldsContainer = document.createElement('div');
       profileFieldsContainer.id = "profile-fields-container";
-      profileFieldsContainer.className = "mt-2";
-      profileContentDiv.appendChild(profileFieldsContainer);
+      profileCardBody.appendChild(profileFieldsContainer);
       populateProfileTab(profileFieldsContainer);
-      tabProfileContent.appendChild(profileContentDiv);
-      wrapper.appendChild(tabProfileContent);
+      profileCard.appendChild(profileCardBody);
+      tabContentProfile.appendChild(profileCard);
+      wrapper.appendChild(tabContentProfile);
       
       // Tab Content: Pinned
-      const tabPinnedContent = document.createElement('div');
-      tabPinnedContent.id = "tab-content-pinned";
-      tabPinnedContent.style.display = "none";
-      const pinnedContentDiv = document.createElement('div');
-      pinnedContentDiv.className = "mt-2";
-      pinnedContentDiv.innerHTML = '<strong>Quick Access Grid:</strong><br>';
-      pinnedContentDiv.appendChild(buildPinnedTabContent());
-      tabPinnedContent.appendChild(pinnedContentDiv);
-      wrapper.appendChild(tabPinnedContent);
+      const tabContentPinned = document.createElement('div');
+      tabContentPinned.id = "tab-content-pinned";
+      tabContentPinned.className = "multitool-tab-content";
+      tabContentPinned.style.display = "none";
+      const pinnedCard = document.createElement('div');
+      pinnedCard.className = "card";
+      const pinnedCardBody = document.createElement('div');
+      pinnedCardBody.className = "card-body";
+      pinnedCardBody.innerHTML = '<strong>Quick Access Grid:</strong><br>';
+      pinnedCardBody.appendChild(buildPinnedTabContent());
+      pinnedCard.appendChild(pinnedCardBody);
+      tabContentPinned.appendChild(pinnedCard);
+      wrapper.appendChild(tabContentPinned);
       
       // Draggable handle (a small button above the header)
       const dragHandleBtn = document.createElement('button');
       dragHandleBtn.innerHTML = "✋";
-      dragHandleBtn.className = "btn btn-xs btn-outline-secondary";
+      dragHandleBtn.className = "btn btn-sm btn-outline-secondary";
       dragHandleBtn.style.position = "absolute";
       dragHandleBtn.style.top = "-20px";
       dragHandleBtn.style.left = "50%";
@@ -649,7 +695,7 @@ body.dark a {
       setFormat('slack');
       showTab('profile');
       initTheme();
-      console.log("[MultiTool Beast] Loaded (v1.45.0) with Bootstrap 5 CSS inline.");
+      console.log("[MultiTool Beast] Loaded (v1.45.0) with Bootstrap 5.");
       
       document.body.appendChild(wrapper);
       window._multitoolWrapper = wrapper;
@@ -657,7 +703,7 @@ body.dark a {
   }
     
   /***********************************************
-   * 10) Auto-update on URL change (every 3 seconds)
+   * 11) Auto-update on URL change (every 3 seconds)
    ***********************************************/
   setInterval(function() {
     const newId = extractTicketId();
@@ -672,7 +718,7 @@ body.dark a {
   }, 3000);
     
   /***********************************************
-   * 11) Initialize on DOM ready
+   * 12) Initialize on DOM ready
    ***********************************************/
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() { setTimeout(initTool, 3000); });
