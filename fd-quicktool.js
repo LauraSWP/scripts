@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.0
+// @version      2.1
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,7 +14,7 @@
   'use strict';
 
   /***************************************************
-   * 0) Utility icon definitions (SVG) at the top
+   * 0) Utility icon definitions (SVG)
    ***************************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -33,34 +33,147 @@
   <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.115 2.693l.319.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.292c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.115l-.094.319c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.693-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291a1.873 1.873 0 0 0-1.115-2.693l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094a1.873 1.873 0 0 0 1.115-2.693l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.693-1.115l.094-.319z"/>
 </svg>`;
 
+  // NOTE: Replace the below truncated SVGs with complete, valid SVG definitions
   const sunIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-  <path d="M8 4a4 4 0 1 0 0 8A4 4 0 0 0 8 4zM4.646.646a.5.5 0 0 1 .708 0L6 1.293. . .
-  (shortened for brevity)
+  <path d="M8 4a4 4 0 1 0 0 8A4 4 0 0 0 8 4z"/>
+  <!-- additional paths for sun icon -->
 </svg>`;
 
   const moonIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-  <path d="M11 0a.5.5 0 0 1 . . .
-  (shortened for brevity)
+  <path d="M11 0a.5.5 0 0 1 . . ."/>
+  <!-- additional paths for moon icon -->
 </svg>`;
+
+  /***************************************************
+   * X) Inject Pastel Sway CSS Styles
+   ***************************************************/
+  function injectCSS() {
+    if (document.getElementById("multitool-beast-css")) return;
+    const style = document.createElement('style');
+    style.id = "multitool-beast-css";
+    style.innerHTML = `
+      /* Wrapper styles */
+      #multitool-beast-wrapper {
+        background-color: #fdf6e3;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        font-family: sans-serif;
+        padding: 10px;
+        z-index: 9999;
+      }
+      /* Header & Title */
+      .sway-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px;
+        background-color: #eee;
+        border-bottom: 1px solid #ccc;
+      }
+      .sway-titlebar {
+        display: flex;
+        align-items: center;
+        font-size: 16px;
+      }
+      .sway-header-buttons button {
+        margin-left: 5px;
+      }
+      /* Tabs */
+      .sway-tabs {
+        list-style: none;
+        display: flex;
+        padding: 0;
+        margin: 10px 0;
+        border-bottom: 1px solid #ccc;
+      }
+      .sway-tab {
+        padding: 5px 10px;
+        cursor: pointer;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
+        background-color: #fdf6e3;
+        margin-right: 5px;
+      }
+      .sway-tab.active {
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-bottom: none;
+      }
+      .sway-content {
+        padding: 10px;
+        background-color: #fff;
+        min-height: 100px;
+      }
+      /* Buttons */
+      .sway-btn {
+        background-color: #a8dadc;
+        border: 1px solid #457b9d;
+        color: #1d3557;
+        padding: 5px 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .sway-btn:hover {
+        background-color: #457b9d;
+        color: #fff;
+      }
+      .sway-btn-xs {
+        font-size: 12px;
+        padding: 3px 6px;
+      }
+      .sway-btn-blue {
+        background-color: #2196F3;
+        color: #fff;
+        border-color: #1976D2;
+      }
+      .sway-btn-red {
+        background-color: #f44336;
+        color: #fff;
+        border-color: #d32f2f;
+      }
+      /* Draggable handle */
+      .sway-handle {
+        background: #eee;
+        border: 1px solid #ccc;
+        cursor: move;
+        display: block;
+        width: 100%;
+        text-align: center;
+        padding: 2px;
+        margin-top: 5px;
+      }
+      /* Field rows */
+      .fieldRow {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .fieldRow span {
+        margin-right: 5px;
+      }
+      .fw-bold {
+        font-weight: bold;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   /***************************************************
    * 1) Utility Functions
    ***************************************************/
-
-  // Check if it's a ticket page
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
   }
 
-  // Extract the ticket ID from URL
   function extractTicketId() {
     const match = window.location.pathname.match(/\/a\/tickets\/(\d+)/);
     return match ? match[1] : null;
   }
 
-  // Attempt to fetch a custom field's value
   function getFieldValue(el) {
     if (!el) return "";
     let val = el.value || el.getAttribute('value') || el.getAttribute('placeholder') || "";
@@ -73,13 +186,11 @@
     return val;
   }
 
-  // Summaries from the note
   function getSummary() {
     const note = document.querySelector('.ticket_note[data-note-id]');
     return note ? note.textContent.trim() : "";
   }
 
-  // Get recent tickets from timeline
   function getRecentTickets(currentId) {
     const tickets = [];
     const els = document.querySelectorAll('div[data-test-id="timeline-activity-ticket"]');
@@ -106,7 +217,6 @@
     return tickets;
   }
 
-  // fetchCARR from the company page
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -152,7 +262,6 @@
     document.body.appendChild(iframe);
   }
 
-  // localStorage helpers
   function savePref(key, value) {
     localStorage.setItem("mtb_"+key, JSON.stringify(value));
   }
@@ -162,7 +271,7 @@
   }
 
   /***************************************************
-   * 2) Theme Functions (light by default, dark toggle)
+   * 2) Theme Functions
    ***************************************************/
   function initTheme() {
     const storedTheme = loadPref("theme", "light");
@@ -186,7 +295,6 @@
     const newTheme = current === "dark" ? "light" : "dark";
     savePref("theme", newTheme);
     applyTheme(newTheme);
-    // Also update the theme icon if needed
     const iconEl = document.getElementById("theme-icon");
     if (iconEl) {
       iconEl.innerHTML = newTheme === "dark" ? sunIconSVG : moonIconSVG;
@@ -208,12 +316,10 @@
     if (!tabProfile || !tabPinned || !tabSettings) return;
     if (!navProfile || !navPinned || !navSettings) return;
 
-    // Hide all tabs
     tabProfile.style.display = "none";
     tabPinned.style.display = "none";
     tabSettings.style.display = "none";
 
-    // Remove active
     navProfile.classList.remove("active");
     navPinned.classList.remove("active");
     navSettings.classList.remove("active");
@@ -243,7 +349,6 @@
         if (lblSpan && valEl) {
           let labelText = lblSpan.textContent.replace(/:\s*$/, "");
           let valueText = valEl.textContent.trim();
-          // Markdown style
           if (labelText.toLowerCase() === "ticket id") {
             const numericId = valueText.replace("#", "");
             const link = window.location.origin + "/a/tickets/" + numericId;
@@ -256,7 +361,6 @@
         }
       }
     });
-    // If "Include Summary" is checked
     const summaryCheck = document.getElementById('include-summary');
     if (summaryCheck && summaryCheck.checked) {
       const summaryText = getSummary();
@@ -280,32 +384,28 @@
     const row = document.createElement('div');
     row.className = "fieldRow";
 
-    // The checkbox
     const check = document.createElement('input');
     check.type = "checkbox";
     check.checked = true;
     check.className = "field-selector";
     row.appendChild(check);
 
-    // Label
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
     lbl.className = "fw-bold";
     row.appendChild(lbl);
 
-    // Value
     const finalVal = valueText || "N/A";
     const valSpan = document.createElement('span');
     valSpan.textContent = finalVal;
     valSpan.className = "fresh-value";
     row.appendChild(valSpan);
 
-    // Optional copy button
     if (withCopy) {
       const btn = document.createElement('button');
       btn.className = "sway-btn sway-btn-xs";
       btn.style.marginLeft = "8px";
-      btn.innerHTML = `📋`; // or an icon
+      btn.innerHTML = `📋`;
       btn.title = "Copy";
       btn.addEventListener('click', function() {
         navigator.clipboard.writeText(finalVal).then(function() {
@@ -372,7 +472,6 @@
     container.appendChild(carrRow);
     container.appendChild(createMenuItem("Relevant URLs", urlsVal));
 
-    // "Copy Account/Profile" button
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
     copyAccBtn.className = "sway-btn sway-btn-xs";
@@ -386,12 +485,10 @@
     });
     container.appendChild(copyAccBtn);
 
-    // Divider
     const hr = document.createElement('hr');
     hr.style.margin = "10px 0";
     container.appendChild(hr);
 
-    // "Recent Tickets" heading
     const rHead = document.createElement('div');
     rHead.textContent = "Recent Tickets (last 7 days)";
     rHead.style.fontWeight = "600";
@@ -434,7 +531,6 @@
       container.appendChild(noDiv);
     }
 
-    // Asynchronously fetch the CARR
     fetchCARR(function(cVal) {
       const vEl = carrRow.querySelector('.fresh-value');
       if (vEl) vEl.textContent = cVal;
@@ -446,7 +542,7 @@
    ***************************************************/
   function buildSettingsContent() {
     const settingsDiv = document.createElement('div');
-    // "Theme" toggle button
+
     const themeLabel = document.createElement('label');
     themeLabel.textContent = "Theme:";
     themeLabel.style.display = "block";
@@ -466,7 +562,6 @@
     themeLabel.appendChild(themeToggleBtn);
     settingsDiv.appendChild(themeLabel);
 
-    // "Keep box open" checkbox
     const keepOpenDiv = document.createElement('div');
     keepOpenDiv.style.marginTop = "8px";
     const keepOpenChk = document.createElement('input');
@@ -496,15 +591,14 @@
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
+    
+    // Inject our pastel CSS styles
+    injectCSS();
+    initTheme();
 
-    console.log("[MultiTool Beast] Initializing Sway panel...");
-    initTheme(); // apply user theme preference
-
-    // Create the wrapper
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
 
-    // Restore box position if any
     const pos = loadPref("boxPosition", null);
     if (pos && pos.top && pos.left) {
       wrapper.style.position = "fixed";
@@ -522,27 +616,22 @@
     wrapper.style.overflow = "auto";
     wrapper.style.display = loadPref("keepOpen", false) ? "block" : "none";
 
-    // If user had it open last time, keep open
     if (loadPref("keepOpen", false)) {
       savePref("multitool_open", true);
     }
-    // If user had manually closed it, do so
     const isOpen = loadPref("multitool_open", false);
     if (!isOpen) {
       wrapper.style.display = "none";
     }
 
-    // Header
     const header = document.createElement('div');
     header.className = "sway-header";
 
-    // Left side: Title
     const leftDiv = document.createElement('div');
     leftDiv.className = "sway-titlebar";
     leftDiv.innerHTML = `${personIconSVG} <span style="font-weight:600; margin-left:4px;">MultiTool Beast</span>`;
     header.appendChild(leftDiv);
 
-    // Right side: up, down, close
     const rightDiv = document.createElement('div');
     rightDiv.className = "sway-header-buttons";
 
@@ -575,24 +664,23 @@
     header.appendChild(rightDiv);
     wrapper.appendChild(header);
 
-    // Tabs
     const tabsBar = document.createElement('ul');
     tabsBar.className = "sway-tabs";
-    // Profile tab
+
     const profileTab = document.createElement('li');
     profileTab.id = "tab-btn-profile";
     profileTab.className = "sway-tab active";
     profileTab.innerHTML = `${personIconSVG} <span style="margin-left:4px;">Profile</span>`;
     profileTab.addEventListener('click', () => showTab('profile'));
     tabsBar.appendChild(profileTab);
-    // Pinned tab
+
     const pinnedTab = document.createElement('li');
     pinnedTab.id = "tab-btn-pinned";
     pinnedTab.className = "sway-tab";
     pinnedTab.innerHTML = `${pinIconSVG} <span style="margin-left:4px;">Pinned</span>`;
     pinnedTab.addEventListener('click', () => showTab('pinned'));
     tabsBar.appendChild(pinnedTab);
-    // Settings tab
+
     const settingsTab = document.createElement('li');
     settingsTab.id = "tab-btn-settings";
     settingsTab.className = "sway-tab";
@@ -602,13 +690,11 @@
 
     wrapper.appendChild(tabsBar);
 
-    // Profile content
     const profileContent = document.createElement('div');
     profileContent.id = "tab-content-profile";
     profileContent.className = "sway-content";
     profileContent.style.display = "block";
 
-    // "Copy Selected" button row
     const copyRow = document.createElement('div');
     copyRow.style.display = "flex";
     copyRow.style.justifyContent = "space-between";
@@ -621,7 +707,6 @@
     copyAllBtn.addEventListener('click', copyAllSelected);
     copyRow.appendChild(copyAllBtn);
 
-    // Summary checkbox
     const summaryDiv = document.createElement('div');
     summaryDiv.style.marginBottom = "8px";
     const sumCheck = document.createElement('input');
@@ -634,13 +719,11 @@
     profileContent.appendChild(copyRow);
     profileContent.appendChild(summaryDiv);
 
-    // Container for fields
     const profileFieldsContainer = document.createElement('div');
     profileFieldsContainer.id = "profile-fields-container";
     profileContent.appendChild(profileFieldsContainer);
     wrapper.appendChild(profileContent);
 
-    // Pinned content
     const pinnedContent = document.createElement('div');
     pinnedContent.id = "tab-content-pinned";
     pinnedContent.className = "sway-content";
@@ -648,7 +731,6 @@
     pinnedContent.appendChild(buildPinnedTabContent());
     wrapper.appendChild(pinnedContent);
 
-    // Settings content
     const settingsContent = document.createElement('div');
     settingsContent.id = "tab-content-settings";
     settingsContent.className = "sway-content";
@@ -657,10 +739,8 @@
     settingsContent.appendChild(setDiv);
     wrapper.appendChild(settingsContent);
 
-    // Populate the Profile tab
     populateProfileTab(profileFieldsContainer);
 
-    // Draggable handle
     const dragHandle = document.createElement('button');
     dragHandle.className = "sway-handle";
     dragHandle.textContent = "✋";
@@ -681,7 +761,6 @@
       function closeDrag() {
         document.removeEventListener('mousemove', dragMove);
         document.removeEventListener('mouseup', closeDrag);
-        // Save position
         savePref("boxPosition", {
           top: wrapper.style.top,
           left: wrapper.style.left
@@ -691,9 +770,7 @@
       document.addEventListener('mouseup', closeDrag);
     });
 
-    // Show "Profile" tab by default
     showTab('profile');
-
     document.body.appendChild(wrapper);
     window._multitoolWrapper = wrapper;
     console.log("[MultiTool Beast] Sway panel loaded.");
@@ -735,7 +812,6 @@
   openBtn.style.cursor = "pointer";
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png">`;
 
-  // If the user preference says "open" or "keepOpen," hide the button
   const isOpenPref = loadPref("multitool_open", false) || loadPref("keepOpen", false);
   if (isOpenPref) {
     openBtn.style.display = "none";
