@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.77
+// @version      1.78
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,18 +14,28 @@
   'use strict';
 
   /***********************************************
-   * 0) Load Bulma CSS (if not already present)
+   * 0) Load Bulma CSS Inline via GM_xmlhttpRequest
    ***********************************************/
-  if (!document.getElementById('bulma-css')) {
-    const link = document.createElement('link');
-    link.id = 'bulma-css';
-    link.rel = 'stylesheet';
-    link.href = 'https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css';
-    document.head.appendChild(link);
+  function loadBulmaCSS() {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: "https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css",
+      onload: function(response) {
+        if (response.status === 200) {
+          const style = document.createElement('style');
+          style.textContent = response.responseText;
+          document.head.appendChild(style);
+          console.log("[MultiTool Beast] Bulma CSS loaded.");
+        } else {
+          console.error("[MultiTool Beast] Failed to load Bulma CSS, status:", response.status);
+        }
+      }
+    });
   }
+  loadBulmaCSS();
 
   /***********************************************
-   * 1) Custom Dark Mode CSS for Bulma (applied when <html> has class "dark")
+   * 1) Custom Dark Mode Overrides for Bulma
    ***********************************************/
   const darkModeOverrides = `
 html.dark body {
@@ -64,7 +74,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 2) Utility: showTab (switch between Profile and Pinned tabs)
+   * 2) Utility: showTab (switch between tabs)
    ***********************************************/
   function showTab(which) {
     document.querySelectorAll('.multitool-tab-content').forEach(el => el.classList.remove('is-active'));
@@ -83,7 +93,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 3) Inline SVG icons (person, pin, copy)
+   * 3) Inline SVG icons
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -101,11 +111,9 @@ html.dark .button {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: switch shows sun for day (light mode) and moon for night
-   *    (CSS below: unchecked displays sun icon; checked displays moon icon)
+   * 4) Dark Mode Toggle: shows sun (day) when unchecked, moon (night) when checked
    ***********************************************/
-  // We’ll use custom CSS (defined later in our UI) for the switch.
-  // Dark mode is controlled by toggling the "dark" class on <html>.
+  // Our switch will use custom CSS (defined in our layout) for its appearance.
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
     if (stored === 'theme-dark') {
@@ -138,7 +146,7 @@ html.dark .button {
   let currentTicketId = extractTicketId();
 
   /***********************************************
-   * 6) Helper Functions
+   * 6) Helper Functions: getFieldValue, getSummary, getRecentTickets, fetchCARR
    ***********************************************/
   function getFieldValue(el) {
     if (!el) return "";
@@ -232,7 +240,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 7) Slack/JIRA Toggle & "Copy Selected"
+   * 7) Slack/JIRA Toggle & "Copy Selected" Functionality
    ***********************************************/
   let formatMode = 'slack';
   function setFormat(mode) {
@@ -336,7 +344,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 8) Build Pinned Tab Content
+   * 8) Build Pinned Tab Content using Bulma columns
    ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
@@ -409,10 +417,7 @@ html.dark .button {
     if (recTix.length > 0) {
       recTix.forEach(t => {
         const tDiv = document.createElement('div');
-        tDiv.className = "mb-2 pb-2 border-b";
-        tDiv.classList.add("border-gray-300");
-        if (document.documentElement.classList.contains("dark"))
-          tDiv.classList.add("border-gray-600");
+        tDiv.className = "mb-2 pb-2 border-b border-gray-300 dark:border-gray-600";
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
@@ -456,7 +461,7 @@ html.dark .button {
     initTheme();
     const isOpen = false;
     
-    // Open button (fixed bottom-right) – same proportions as before
+    // Open button (fixed bottom-right, same proportions as before)
     const openBtn = document.createElement('button');
     openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="image is-32x32">`;
     openBtn.className = "button is-primary is-small";
@@ -478,10 +483,9 @@ html.dark .button {
     });
     document.body.appendChild(openBtn);
     
-    // Outer wrapper – use Bulma's "box" class and fixed positioning similar to Bootstrap version
+    // Outer wrapper (same proportions/position as before)
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
-    // Restore stored position if any, otherwise default to bottom 80px, right 20px
     const storedPos = localStorage.getItem("multitool_position");
     if (storedPos) {
       try {
@@ -493,7 +497,8 @@ html.dark .button {
       wrapper.style.bottom = "80px";
       wrapper.style.right = "20px";
     }
-    wrapper.className = "box has-background-white dark:has-background-dark p-4";
+    // Using Bulma's box class plus custom inline styles for fixed position and resizing
+    wrapper.className = "box p-4";
     wrapper.style.position = "fixed";
     wrapper.style.zIndex = "10000";
     wrapper.style.width = "360px";
@@ -504,13 +509,13 @@ html.dark .button {
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
     
-    // Top Bar – using Bulma level
+    // Top Bar (Bulma level)
     const topBar = document.createElement('div');
     topBar.id = "multitool-topbar";
     topBar.className = "level mb-2";
-    // Left part: dark mode toggle
     const levelLeft = document.createElement('div');
     levelLeft.className = "level-left";
+    // Night mode toggle
     const nightLabel = document.createElement('label');
     nightLabel.className = "switch";
     const nightInput = document.createElement('input');
@@ -523,25 +528,25 @@ html.dark .button {
     levelLeft.appendChild(nightLabel);
     nightInput.addEventListener('change', toggleTheme);
     topBar.appendChild(levelLeft);
-    // Right part: up, down, close buttons
+    
     const levelRight = document.createElement('div');
     levelRight.className = "level-right";
     const upBtn = document.createElement('button');
     upBtn.textContent = "↑";
-    upBtn.className = "button is-small";
     upBtn.title = "Scroll to top";
+    upBtn.className = "button is-small";
     upBtn.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     levelRight.appendChild(upBtn);
     const downBtn = document.createElement('button');
     downBtn.textContent = "↓";
-    downBtn.className = "button is-small";
     downBtn.title = "Scroll to bottom";
+    downBtn.className = "button is-small";
     downBtn.addEventListener('click', () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
     levelRight.appendChild(downBtn);
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "×";
-    closeBtn.className = "button is-danger is-small";
     closeBtn.title = "Close MultiTool Beast";
+    closeBtn.className = "button is-danger is-small";
     closeBtn.addEventListener('click', () => {
       wrapper.style.display = "none";
       openBtn.style.display = "block";
@@ -551,7 +556,7 @@ html.dark .button {
     topBar.appendChild(levelRight);
     wrapper.appendChild(topBar);
     
-    // Header – Bulma title style
+    // Header (Bulma title)
     const headerArea = document.createElement('div');
     headerArea.className = "has-text-centered mb-2";
     const headerIcon = document.createElement('img');
@@ -564,7 +569,7 @@ html.dark .button {
     headerArea.appendChild(headerTxt);
     wrapper.appendChild(headerArea);
     
-    // Tabs Navigation – using Bulma tabs component
+    // Tabs Navigation (Bulma tabs)
     const tabsNav = document.createElement('div');
     tabsNav.className = "tabs is-boxed is-small mb-2";
     const ul = document.createElement('ul');
@@ -590,11 +595,10 @@ html.dark .button {
     const tabProfile = document.createElement('div');
     tabProfile.id = "tab-content-profile";
     tabProfile.className = "multitool-tab-content";
-    // Use Bulma box content styling
     const profileContent = document.createElement('div');
     profileContent.className = "content";
     
-    // Row: "Copy Selected" and Slack/JIRA toggle
+    // Row: Copy Selected + Slack/JIRA toggle
     const topBodyRowProfile = document.createElement('div');
     topBodyRowProfile.className = "is-flex is-align-items-center mb-2";
     const copyAllBtn = document.createElement('button');
@@ -603,21 +607,20 @@ html.dark .button {
     copyAllBtn.className = "button is-info is-small mr-2";
     copyAllBtn.addEventListener('click', copyAllSelected);
     topBodyRowProfile.appendChild(copyAllBtn);
-    
     const formatGroup = document.createElement('div');
     formatGroup.id = "format-toggle-group";
     formatGroup.className = "buttons are-small";
     const slackBtn = document.createElement('button');
     slackBtn.id = "format-slack-btn";
     slackBtn.textContent = "Slack";
-    slackBtn.className = "button is-outlined is-info is-small is-active";
     slackBtn.type = "button";
+    slackBtn.className = "button is-outlined is-info is-small is-active";
     slackBtn.addEventListener('click', () => setFormat('slack'));
     const jiraBtn = document.createElement('button');
     jiraBtn.id = "format-jira-btn";
     jiraBtn.textContent = "JIRA";
-    jiraBtn.className = "button is-outlined is-info is-small";
     jiraBtn.type = "button";
+    jiraBtn.className = "button is-outlined is-info is-small";
     jiraBtn.addEventListener('click', () => setFormat('jira'));
     formatGroup.appendChild(slackBtn);
     formatGroup.appendChild(jiraBtn);
@@ -643,7 +646,6 @@ html.dark .button {
     profileFieldsContainer.id = "profile-fields-container";
     profileContent.appendChild(profileFieldsContainer);
     populateProfileTab(profileFieldsContainer);
-    
     tabProfile.appendChild(profileContent);
     wrapper.appendChild(tabProfile);
     
@@ -660,7 +662,7 @@ html.dark .button {
     
     document.body.appendChild(wrapper);
     
-    // Draggable handle (Bulma style – a small button above the box header)
+    // Draggable handle
     const dragHandleBtn = document.createElement('button');
     dragHandleBtn.innerHTML = "✋";
     dragHandleBtn.className = "button is-light is-small";
