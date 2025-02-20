@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.82
+// @version      1.83
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -127,7 +127,7 @@ html.dark .button {
 </svg>`;
 
   /***********************************************
-   * 4) Dark Mode Toggle: Appearance via our switch
+   * 4) Dark Mode Toggle: Appearance via our custom switch
    ***********************************************/
   function initTheme() {
     const stored = localStorage.getItem('fdTheme');
@@ -436,10 +436,10 @@ html.dark .button {
     if (recTix.length > 0) {
       recTix.forEach(t => {
         const tDiv = document.createElement('div');
-        tDiv.className = "mb-2 pb-2 border-bottom";
-        tDiv.style.borderColor = "rgb(209 213 219)"; // Bulma's gray-300
+        tDiv.className = "mb-2 pb-2";
+        tDiv.style.borderBottom = "1px solid rgb(209, 213, 219)";
         if (document.documentElement.classList.contains("dark")) {
-          tDiv.style.borderColor = "#444";
+          tDiv.style.borderBottom = "1px solid #444";
         }
         const a = document.createElement('a');
         a.href = t.href;
@@ -484,15 +484,16 @@ html.dark .button {
     initTheme();
     const isOpen = false;
     
-    // Open button (fixed bottom-right)
+    // Open button – keep same position as Bootstrap: fixed at bottom:20px, right:20px
     const openBtn = document.createElement('button');
     openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="image is-32x32">`;
-    openBtn.className = "button is-primary is-small fixed" ;
+    openBtn.style.position = "fixed";
     openBtn.style.bottom = "20px";
     openBtn.style.right = "20px";
     openBtn.style.zIndex = "10000";
     openBtn.title = "Open MultiTool Beast";
     openBtn.style.display = isOpen ? "none" : "block";
+    openBtn.className = "button is-primary is-small";
     openBtn.addEventListener('click', () => {
       console.log("[MultiTool Beast] Open button clicked");
       wrapper.style.display = "block";
@@ -505,7 +506,7 @@ html.dark .button {
     });
     document.body.appendChild(openBtn);
     
-    // Outer wrapper
+    // Outer wrapper – keep same position as Bootstrap: fixed at bottom:80px, right:20px
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
     const storedPos = localStorage.getItem("multitool_position");
@@ -516,10 +517,20 @@ html.dark .button {
         if (pos.left) wrapper.style.left = pos.left;
       } catch(e){}
     } else {
+      wrapper.style.position = "fixed";
       wrapper.style.bottom = "80px";
       wrapper.style.right = "20px";
     }
-    wrapper.className = "box p-4 fixed z-50 w-80 min-w-[280px] min-h-[200px] resize overflow-auto bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200";
+    wrapper.style.zIndex = "10000";
+    wrapper.style.width = "360px";
+    wrapper.style.minWidth = "280px";
+    wrapper.style.minHeight = "200px";
+    wrapper.style.resize = "both";
+    wrapper.style.overflow = "auto";
+    wrapper.className = "box p-4";
+    // Use Bulma's box background classes:
+    wrapper.classList.add("bg-white");
+    // For dark mode, our custom overrides will kick in.
     wrapper.style.display = isOpen ? "block" : "none";
     localStorage.setItem("multitool_open", isOpen ? "true" : "false");
     
@@ -528,7 +539,7 @@ html.dark .button {
     topBar.id = "multitool-topbar";
     topBar.className = "flex justify-between items-center mb-2 px-2";
     const topLeft = document.createElement('div');
-    // Night mode toggle switch – our custom switch (we style it via inline CSS below)
+    // Night mode toggle switch – styled via our custom CSS
     const nightLabel = document.createElement('label');
     nightLabel.className = "switch inline-block";
     const nightInput = document.createElement('input');
@@ -546,18 +557,21 @@ html.dark .button {
     const upBtn = document.createElement('button');
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
+    upBtn.style.position = "relative";
     upBtn.className = "button is-small border border-blue-600 rounded px-2 py-1";
     upBtn.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     topRight.appendChild(upBtn);
     const downBtn = document.createElement('button');
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
+    downBtn.style.position = "relative";
     downBtn.className = "button is-small border border-blue-600 rounded px-2 py-1";
     downBtn.addEventListener('click', () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
     topRight.appendChild(downBtn);
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "×";
     closeBtn.title = "Close MultiTool Beast";
+    closeBtn.style.position = "relative";
     closeBtn.className = "button is-danger is-small border border-red-600 rounded px-2 py-1";
     closeBtn.addEventListener('click', () => {
       wrapper.style.display = "none";
@@ -616,7 +630,7 @@ html.dark .button {
     topBodyRowProfile.appendChild(copyAllBtn);
     const formatGroup = document.createElement('div');
     formatGroup.id = "format-toggle-group";
-    formatGroup.className = "buttons are-small";
+    formatGroup.className = "flex space-x-2";
     const slackBtn = document.createElement('button');
     slackBtn.id = "format-slack-btn";
     slackBtn.textContent = "Slack";
@@ -714,7 +728,7 @@ html.dark .button {
       }
     }
   }, 3000);
-
+  
   /***********************************************
    * 11) Initialize on DOM ready
    ***********************************************/
