@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.83
+// @version      1.84
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -17,25 +17,22 @@
   /***********************************************
    * 0) Load Bulma CSS Inline via GM_xmlhttpRequest
    ***********************************************/
-  function loadBulmaCSS() {
+  function loadBulmaCSS(callback) {
     const url = "https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css";
     GM_xmlhttpRequest({
       method: "GET",
       url: url,
       onload: function(response) {
         if (response.status === 200) {
-          const style = document.createElement('style');
-          style.id = "bulma-inline";
-          style.textContent = response.responseText;
-          document.head.appendChild(style);
           console.log("[MultiTool Beast] Bulma CSS loaded inline.");
+          callback(response.responseText);
         } else {
           console.error("[MultiTool Beast] Failed to load Bulma CSS, status:", response.status);
+          callback("");
         }
       }
     });
   }
-  loadBulmaCSS();
 
   /***********************************************
    * 1) Custom Dark Mode Overrides for Bulma
@@ -50,12 +47,6 @@ html.dark .box {
   border-color: #333 !important;
   color: #e0e0e0 !important;
 }
-html.dark .border-gray-300 {
-  border-color: #444 !important;
-}
-html.dark .bg-gray-100 {
-  background-color: #2d2d2d !important;
-}
 html.dark .has-text-link {
   color: #9ecfff !important;
 }
@@ -66,41 +57,34 @@ html.dark .button {
 }
 `;
   function applyDarkModeCSS() {
-    if (!document.getElementById('dark-mode-overrides')) {
-      const style = document.createElement('style');
-      style.id = 'dark-mode-overrides';
-      style.textContent = darkModeOverrides;
-      document.head.appendChild(style);
-    }
-  }
-  function removeDarkModeCSS() {
-    const style = document.getElementById('dark-mode-overrides');
-    if (style) style.remove();
+    // In our shadow DOM we'll inject Bulma + overrides together.
+    // (See below in initTool.)
+    return darkModeOverrides;
   }
 
   /***********************************************
    * 2) Utility: showTab (switch between "Profile" and "Pinned" tabs)
    ***********************************************/
-  function showTab(which) {
-    document.querySelectorAll('.multitool-tab-content').forEach(el => {
+  function showTab(which, shadow) {
+    shadow.querySelectorAll('.multitool-tab-content').forEach(el => {
       el.classList.remove('block');
       el.classList.add('hidden');
     });
-    document.querySelectorAll('.multitool-tab-item').forEach(el => {
-      el.classList.remove('border-bottom-2','border-blue-600');
+    shadow.querySelectorAll('.multitool-tab-item').forEach(el => {
+      el.classList.remove('border-bottom-2','border-info');
     });
     if (which === 'profile') {
-      const tab = document.getElementById('tab-btn-profile');
-      const content = document.getElementById('tab-content-profile');
-      if (tab) tab.classList.add('border-bottom-2','border-blue-600');
+      const tab = shadow.getElementById('tab-btn-profile');
+      const content = shadow.getElementById('tab-content-profile');
+      if (tab) tab.classList.add('border-bottom-2','border-info');
       if (content) {
         content.classList.remove('hidden');
         content.classList.add('block');
       }
     } else {
-      const tab = document.getElementById('tab-btn-pinned');
-      const content = document.getElementById('tab-content-pinned');
-      if (tab) tab.classList.add('border-bottom-2','border-blue-600');
+      const tab = shadow.getElementById('tab-btn-pinned');
+      const content = shadow.getElementById('tab-content-pinned');
+      if (tab) tab.classList.add('border-bottom-2','border-info');
       if (content) {
         content.classList.remove('hidden');
         content.classList.add('block');
@@ -109,7 +93,7 @@ html.dark .button {
   }
 
   /***********************************************
-   * 3) Inline SVG Icons (person, pin, copy)
+   * 3) Inline SVG Icons
    ***********************************************/
   const personIconSVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -133,21 +117,17 @@ html.dark .button {
     const stored = localStorage.getItem('fdTheme');
     if (stored === 'theme-dark') {
       document.documentElement.classList.add('dark');
-      applyDarkModeCSS();
     } else {
       document.documentElement.classList.remove('dark');
-      removeDarkModeCSS();
     }
   }
   function toggleTheme() {
     if (document.documentElement.classList.contains('dark')) {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('fdTheme', 'theme-light');
-      removeDarkModeCSS();
     } else {
       document.documentElement.classList.add('dark');
       localStorage.setItem('fdTheme', 'theme-dark');
-      applyDarkModeCSS();
     }
   }
 
@@ -260,24 +240,25 @@ html.dark .button {
   let formatMode = 'slack';
   function setFormat(mode) {
     formatMode = mode;
-    const slackBtn = document.getElementById('format-slack-btn');
-    const jiraBtn = document.getElementById('format-jira-btn');
+    const slackBtn = shadow.getElementById('format-slack-btn');
+    const jiraBtn = shadow.getElementById('format-jira-btn');
     if (!slackBtn || !jiraBtn) return;
     if (mode === 'slack') {
-      slackBtn.classList.add('bg-blue-600', 'text-white');
-      slackBtn.classList.remove('bg-transparent');
-      jiraBtn.classList.remove('bg-blue-600', 'text-white');
-      jiraBtn.classList.add('bg-transparent');
+      slackBtn.classList.add('has-background-info','has-text-white');
+      slackBtn.classList.remove('has-background-transparent');
+      jiraBtn.classList.remove('has-background-info','has-text-white');
+      jiraBtn.classList.add('has-background-transparent');
     } else {
-      slackBtn.classList.remove('bg-blue-600', 'text-white');
-      slackBtn.classList.add('bg-transparent');
-      jiraBtn.classList.add('bg-blue-600', 'text-white');
-      jiraBtn.classList.remove('bg-transparent');
+      slackBtn.classList.remove('has-background-info','has-text-white');
+      slackBtn.classList.add('has-background-transparent');
+      jiraBtn.classList.add('has-background-info','has-text-white');
+      jiraBtn.classList.remove('has-background-transparent');
     }
   }
   function copyAllSelected() {
     let copyText = "";
-    document.querySelectorAll('.fieldRow').forEach(row => {
+    // We need to search inside the shadow DOM
+    shadow.querySelectorAll('.fieldRow').forEach(row => {
       const chk = row.querySelector('.field-selector');
       if (chk && chk.checked) {
         const lblSpan = row.querySelector('span');
@@ -301,7 +282,7 @@ html.dark .button {
         }
       }
     });
-    const summaryCheck = document.getElementById('include-summary');
+    const summaryCheck = shadow.getElementById('include-summary');
     if (summaryCheck && summaryCheck.checked) {
       const summaryText = getSummary();
       if (summaryText) {
@@ -312,7 +293,7 @@ html.dark .button {
         }
       }
     }
-    const copyBtn = document.getElementById('copy-all-selected-btn');
+    const copyBtn = shadow.getElementById('copy-all-selected-btn');
     navigator.clipboard.writeText(copyText).then(() => {
       if (copyBtn) {
         copyBtn.textContent = "Copied Selected!";
@@ -322,7 +303,8 @@ html.dark .button {
   }
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
-    row.className = "mb-2 pb-2 border-b border-gray-300 dark:border-gray-600 flex items-center fieldRow";
+    row.className = "mb-2 pb-2 fieldRow";
+    row.style.borderBottom = "1px solid #ddd";
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = true;
@@ -330,7 +312,7 @@ html.dark .button {
     row.appendChild(check);
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
-    lbl.className = "font-bold";
+    lbl.className = "has-text-weight-bold";
     row.appendChild(lbl);
     const finalVal = valueText || "N/A";
     if (labelText.toLowerCase() === "relevant urls" && finalVal.startsWith("http")) {
@@ -338,12 +320,12 @@ html.dark .button {
       link.href = finalVal;
       link.target = "_blank";
       link.textContent = finalVal;
-      link.className = "ml-2 p-1 bg-gray-100 dark:bg-gray-700 rounded";
+      link.className = "ml-2 p-1 has-background-light rounded";
       row.appendChild(link);
     } else {
       const span = document.createElement('span');
       span.textContent = finalVal;
-      span.className = "ml-2 p-1 bg-gray-100 dark:bg-gray-700 rounded";
+      span.className = "ml-2 p-1 has-background-light rounded";
       row.appendChild(span);
     }
     if (withCopy) {
@@ -367,7 +349,6 @@ html.dark .button {
    ***********************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
-    grid.id = "pinned-grid";
     grid.className = "columns is-multiline";
     const items = [
       { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
@@ -437,7 +418,7 @@ html.dark .button {
       recTix.forEach(t => {
         const tDiv = document.createElement('div');
         tDiv.className = "mb-2 pb-2";
-        tDiv.style.borderBottom = "1px solid rgb(209, 213, 219)";
+        tDiv.style.borderBottom = "1px solid #ddd";
         if (document.documentElement.classList.contains("dark")) {
           tDiv.style.borderBottom = "1px solid #444";
         }
@@ -473,245 +454,227 @@ html.dark .button {
   }
 
   /***********************************************
-   * 9) Build Entire Tool Layout using Bulma
+   * 9) Build Entire Tool Layout Using Bulma (in Shadow DOM)
    ***********************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing (v1.44.2) with Bulma CSS inline.");
-    initTheme();
-    const isOpen = false;
-    
-    // Open button – keep same position as Bootstrap: fixed at bottom:20px, right:20px
-    const openBtn = document.createElement('button');
-    openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" class="image is-32x32">`;
-    openBtn.style.position = "fixed";
-    openBtn.style.bottom = "20px";
-    openBtn.style.right = "20px";
-    openBtn.style.zIndex = "10000";
-    openBtn.title = "Open MultiTool Beast";
-    openBtn.style.display = isOpen ? "none" : "block";
-    openBtn.className = "button is-primary is-small";
-    openBtn.addEventListener('click', () => {
-      console.log("[MultiTool Beast] Open button clicked");
-      wrapper.style.display = "block";
-      openBtn.style.display = "none";
-      localStorage.setItem("multitool_open", "true");
-      showTab('profile');
-      if (profileFieldsContainer) {
-        populateProfileTab(profileFieldsContainer);
-      }
-    });
-    document.body.appendChild(openBtn);
-    
-    // Outer wrapper – keep same position as Bootstrap: fixed at bottom:80px, right:20px
-    const wrapper = document.createElement('div');
-    wrapper.id = "multitool-beast-wrapper";
-    const storedPos = localStorage.getItem("multitool_position");
-    if (storedPos) {
-      try {
-        const pos = JSON.parse(storedPos);
-        if (pos.top) wrapper.style.top = pos.top;
-        if (pos.left) wrapper.style.left = pos.left;
-      } catch(e){}
-    } else {
+    loadBulmaCSS(function(bulmaCSS) {
+      console.log("[MultiTool Beast] Initializing (v1.44.2) with Bulma in Shadow DOM.");
+      initTheme();
+      const isOpen = false;
+      
+      // Create outer wrapper with fixed position (as in Bootstrap version)
+      const wrapper = document.createElement('div');
+      wrapper.id = "multitool-beast-wrapper";
+      // Position: fixed at bottom:80px, right:20px; min-width 200px
       wrapper.style.position = "fixed";
       wrapper.style.bottom = "80px";
       wrapper.style.right = "20px";
-    }
-    wrapper.style.zIndex = "10000";
-    wrapper.style.width = "360px";
-    wrapper.style.minWidth = "280px";
-    wrapper.style.minHeight = "200px";
-    wrapper.style.resize = "both";
-    wrapper.style.overflow = "auto";
-    wrapper.className = "box p-4";
-    // Use Bulma's box background classes:
-    wrapper.classList.add("bg-white");
-    // For dark mode, our custom overrides will kick in.
-    wrapper.style.display = isOpen ? "block" : "none";
-    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
-    
-    // Top Bar
-    const topBar = document.createElement('div');
-    topBar.id = "multitool-topbar";
-    topBar.className = "flex justify-between items-center mb-2 px-2";
-    const topLeft = document.createElement('div');
-    // Night mode toggle switch – styled via our custom CSS
-    const nightLabel = document.createElement('label');
-    nightLabel.className = "switch inline-block";
-    const nightInput = document.createElement('input');
-    nightInput.type = "checkbox";
-    nightInput.id = "slider-top";
-    const nightSpan = document.createElement('span');
-    nightSpan.className = "slider round block";
-    nightLabel.appendChild(nightInput);
-    nightLabel.appendChild(nightSpan);
-    topLeft.appendChild(nightLabel);
-    nightInput.addEventListener('change', toggleTheme);
-    topBar.appendChild(topLeft);
-    const topRight = document.createElement('div');
-    topRight.className = "flex space-x-2";
-    const upBtn = document.createElement('button');
-    upBtn.textContent = "↑";
-    upBtn.title = "Scroll to top";
-    upBtn.style.position = "relative";
-    upBtn.className = "button is-small border border-blue-600 rounded px-2 py-1";
-    upBtn.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
-    topRight.appendChild(upBtn);
-    const downBtn = document.createElement('button');
-    downBtn.textContent = "↓";
-    downBtn.title = "Scroll to bottom";
-    downBtn.style.position = "relative";
-    downBtn.className = "button is-small border border-blue-600 rounded px-2 py-1";
-    downBtn.addEventListener('click', () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
-    topRight.appendChild(downBtn);
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = "×";
-    closeBtn.title = "Close MultiTool Beast";
-    closeBtn.style.position = "relative";
-    closeBtn.className = "button is-danger is-small border border-red-600 rounded px-2 py-1";
-    closeBtn.addEventListener('click', () => {
-      wrapper.style.display = "none";
-      openBtn.style.display = "block";
-      localStorage.setItem("multitool_open", "false");
+      wrapper.style.zIndex = "10000";
+      wrapper.style.width = "360px";
+      wrapper.style.minWidth = "200px";
+      wrapper.style.minHeight = "200px";
+      wrapper.style.resize = "both";
+      wrapper.style.overflow = "auto";
+      // We'll add a Bulma "box" class for styling
+      wrapper.className = "box p-4";
+      // Initially hidden if not open
+      wrapper.style.display = isOpen ? "block" : "none";
+      localStorage.setItem("multitool_open", isOpen ? "true" : "false");
+
+      // Attach shadow DOM to isolate Bulma CSS
+      const shadow = wrapper.attachShadow({ mode: "open" });
+      
+      // Create a style element in shadow with Bulma CSS + dark mode overrides
+      const styleEl = document.createElement('style');
+      styleEl.textContent = bulmaCSS + "\n" + darkModeOverrides;
+      shadow.appendChild(styleEl);
+      
+      // Create a container div for our UI elements (inside shadow DOM)
+      const container = document.createElement('div');
+
+      // Top Bar
+      const topBar = document.createElement('div');
+      topBar.id = "multitool-topbar";
+      topBar.className = "level mb-2 px-2";
+      const levelLeft = document.createElement('div');
+      levelLeft.className = "level-left";
+      const nightLabel = document.createElement('label');
+      nightLabel.className = "switch";
+      const nightInput = document.createElement('input');
+      nightInput.type = "checkbox";
+      nightInput.id = "slider-top";
+      const nightSpan = document.createElement('span');
+      nightSpan.className = "slider round";
+      nightLabel.appendChild(nightInput);
+      nightLabel.appendChild(nightSpan);
+      levelLeft.appendChild(nightLabel);
+      topBar.appendChild(levelLeft);
+      const levelRight = document.createElement('div');
+      levelRight.className = "level-right";
+      const upBtn = document.createElement('button');
+      upBtn.textContent = "↑";
+      upBtn.title = "Scroll to top";
+      upBtn.className = "button is-small";
+      upBtn.addEventListener('click', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      levelRight.appendChild(upBtn);
+      const downBtn = document.createElement('button');
+      downBtn.textContent = "↓";
+      downBtn.title = "Scroll to bottom";
+      downBtn.className = "button is-small";
+      downBtn.addEventListener('click', () => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
+      levelRight.appendChild(downBtn);
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = "×";
+      closeBtn.title = "Close MultiTool Beast";
+      closeBtn.className = "button is-danger is-small";
+      closeBtn.addEventListener('click', () => {
+        wrapper.style.display = "none";
+        openBtn.style.display = "block";
+        localStorage.setItem("multitool_open", "false");
+      });
+      levelRight.appendChild(closeBtn);
+      topBar.appendChild(levelRight);
+      container.appendChild(topBar);
+      
+      // Header
+      const headerArea = document.createElement('div');
+      headerArea.className = "has-text-centered mb-2";
+      const headerIcon = document.createElement('img');
+      headerIcon.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
+      headerIcon.className = "image is-32x32 inline-block";
+      const headerTxt = document.createElement('span');
+      headerTxt.textContent = "MultiTool Beast";
+      headerTxt.className = "title is-5";
+      headerArea.appendChild(headerIcon);
+      headerArea.appendChild(headerTxt);
+      container.appendChild(headerArea);
+      
+      // Tabs Navigation
+      const tabsNav = document.createElement('div');
+      tabsNav.className = "tabs is-boxed is-small mb-2";
+      const ul = document.createElement('ul');
+      const liProfile = document.createElement('li');
+      liProfile.id = "tab-btn-profile";
+      liProfile.className = "multitool-tab-item";
+      liProfile.innerHTML = `<a><span class="icon is-small">${personIconSVG}</span><span>Profile</span></a>`;
+      liProfile.addEventListener('click', () => showTab('profile', shadow));
+      ul.appendChild(liProfile);
+      const liPinned = document.createElement('li');
+      liPinned.id = "tab-btn-pinned";
+      liPinned.className = "multitool-tab-item";
+      liPinned.innerHTML = `<a><span class="icon is-small">${pinIconSVG}</span><span>Pinned</span></a>`;
+      liPinned.addEventListener('click', () => showTab('pinned', shadow));
+      ul.appendChild(liPinned);
+      tabsNav.appendChild(ul);
+      container.appendChild(tabsNav);
+      
+      // Profile Tab Content
+      const tabProfile = document.createElement('div');
+      tabProfile.id = "tab-content-profile";
+      tabProfile.className = "multitool-tab-content block"; // visible by default
+      const profileContent = document.createElement('div');
+      profileContent.className = "content";
+      const topBodyRowProfile = document.createElement('div');
+      topBodyRowProfile.className = "is-flex is-align-items-center mb-2";
+      const copyAllBtn = document.createElement('button');
+      copyAllBtn.id = "copy-all-selected-btn";
+      copyAllBtn.textContent = "Copy Selected";
+      copyAllBtn.className = "button is-info is-small mr-2";
+      copyAllBtn.addEventListener('click', copyAllSelected);
+      topBodyRowProfile.appendChild(copyAllBtn);
+      const formatGroup = document.createElement('div');
+      formatGroup.id = "format-toggle-group";
+      formatGroup.className = "buttons are-small";
+      const slackBtn = document.createElement('button');
+      slackBtn.id = "format-slack-btn";
+      slackBtn.textContent = "Slack";
+      slackBtn.type = "button";
+      slackBtn.className = "button is-outlined is-info is-small is-active";
+      slackBtn.addEventListener('click', () => setFormat('slack'));
+      const jiraBtn = document.createElement('button');
+      jiraBtn.id = "format-jira-btn";
+      jiraBtn.textContent = "JIRA";
+      jiraBtn.type = "button";
+      jiraBtn.className = "button is-outlined is-info is-small";
+      jiraBtn.addEventListener('click', () => setFormat('jira'));
+      formatGroup.appendChild(slackBtn);
+      formatGroup.appendChild(jiraBtn);
+      topBodyRowProfile.appendChild(formatGroup);
+      profileContent.appendChild(topBodyRowProfile);
+      const summaryRow = document.createElement('div');
+      summaryRow.className = "mb-2";
+      const sumCheck = document.createElement('input');
+      sumCheck.type = "checkbox";
+      sumCheck.id = "include-summary";
+      sumCheck.className = "mr-2";
+      const sumLbl = document.createElement('label');
+      sumLbl.textContent = "Include Summary";
+      sumLbl.htmlFor = "include-summary";
+      summaryRow.appendChild(sumCheck);
+      summaryRow.appendChild(sumLbl);
+      profileContent.appendChild(summaryRow);
+      const profileFieldsContainer = document.createElement('div');
+      profileFieldsContainer.id = "profile-fields-container";
+      profileContent.appendChild(profileFieldsContainer);
+      populateProfileTab(profileFieldsContainer);
+      tabProfile.appendChild(profileContent);
+      container.appendChild(tabProfile);
+      
+      // Pinned Tab Content (Quick Access Grid)
+      const tabPinned = document.createElement('div');
+      tabPinned.id = "tab-content-pinned";
+      tabPinned.className = "multitool-tab-content hidden"; // initially hidden
+      const pinnedContent = document.createElement('div');
+      pinnedContent.className = "content";
+      pinnedContent.innerHTML = `<p class="has-text-weight-bold mb-2 is-size-7">Quick Access Grid:</p>`;
+      pinnedContent.appendChild(buildPinnedTabContent());
+      tabPinned.appendChild(pinnedContent);
+      container.appendChild(tabPinned);
+      
+      // Append container to shadow DOM
+      shadow.appendChild(container);
+      
+      // Draggable handle (a small button above the header)
+      const dragHandleBtn = document.createElement('button');
+      dragHandleBtn.innerHTML = "✋";
+      dragHandleBtn.className = "button is-light is-small absolute -top-6 left-1/2 transform -translate-x-1/2 cursor-move";
+      shadow.appendChild(dragHandleBtn);
+      dragHandleBtn.onmousedown = function(e) {
+        e.preventDefault();
+        let posX = e.clientX, posY = e.clientY;
+        document.onmouseup = closeDrag;
+        document.onmousemove = dragMove;
+        function dragMove(e2) {
+          e2.preventDefault();
+          let deltaX = posX - e2.clientX;
+          let deltaY = e2.clientY - posY;
+          posX = e2.clientX;
+          posY = e2.clientY;
+          wrapper.style.top = (wrapper.offsetTop + deltaY) + "px";
+          wrapper.style.left = (wrapper.offsetLeft - deltaX) + "px";
+        }
+        function closeDrag() {
+          document.onmouseup = null;
+          document.onmousemove = null;
+          localStorage.setItem("multitool_position", JSON.stringify({
+            top: wrapper.style.top,
+            left: wrapper.style.left
+          }));
+        }
+      };
+      
+      setFormat('slack');
+      showTab('profile', shadow);
+      initTheme();
+      console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma CSS inline in Shadow DOM.");
+      
+      document.body.appendChild(wrapper);
+      window._multitoolWrapper = wrapper;
     });
-    topRight.appendChild(closeBtn);
-    topBar.appendChild(topRight);
-    wrapper.appendChild(topBar);
-    
-    // Header
-    const headerArea = document.createElement('div');
-    headerArea.className = "has-text-centered mb-2";
-    const headerIcon = document.createElement('img');
-    headerIcon.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
-    headerIcon.className = "image is-32x32 inline-block mr-2";
-    const headerTxt = document.createElement('span');
-    headerTxt.textContent = "MultiTool Beast";
-    headerTxt.className = "title is-5 has-text-weight-bold";
-    headerArea.appendChild(headerIcon);
-    headerArea.appendChild(headerTxt);
-    wrapper.appendChild(headerArea);
-    
-    // Tabs Navigation
-    const tabsNav = document.createElement('div');
-    tabsNav.className = "tabs is-boxed is-small mb-2";
-    const ul = document.createElement('ul');
-    const liProfile = document.createElement('li');
-    liProfile.id = "tab-btn-profile";
-    liProfile.className = "multitool-tab-item";
-    liProfile.innerHTML = `<a><span class="icon is-small">${personIconSVG}</span><span>Profile</span></a>`;
-    liProfile.addEventListener('click', () => showTab('profile'));
-    ul.appendChild(liProfile);
-    const liPinned = document.createElement('li');
-    liPinned.id = "tab-btn-pinned";
-    liPinned.className = "multitool-tab-item";
-    liPinned.innerHTML = `<a><span class="icon is-small">${pinIconSVG}</span><span>Pinned</span></a>`;
-    liPinned.addEventListener('click', () => showTab('pinned'));
-    ul.appendChild(liPinned);
-    tabsNav.appendChild(ul);
-    wrapper.appendChild(tabsNav);
-    
-    // Profile Tab Content
-    const tabProfile = document.createElement('div');
-    tabProfile.id = "tab-content-profile";
-    tabProfile.className = "multitool-tab-content block"; // visible by default
-    const profileContent = document.createElement('div');
-    profileContent.className = "p-3";
-    const topBodyRowProfile = document.createElement('div');
-    topBodyRowProfile.className = "flex items-center mb-2";
-    const copyAllBtn = document.createElement('button');
-    copyAllBtn.id = "copy-all-selected-btn";
-    copyAllBtn.textContent = "Copy Selected";
-    copyAllBtn.className = "button is-info is-small mr-2";
-    copyAllBtn.addEventListener('click', copyAllSelected);
-    topBodyRowProfile.appendChild(copyAllBtn);
-    const formatGroup = document.createElement('div');
-    formatGroup.id = "format-toggle-group";
-    formatGroup.className = "flex space-x-2";
-    const slackBtn = document.createElement('button');
-    slackBtn.id = "format-slack-btn";
-    slackBtn.textContent = "Slack";
-    slackBtn.type = "button";
-    slackBtn.className = "button is-outlined is-info is-small is-active";
-    slackBtn.addEventListener('click', () => setFormat('slack'));
-    const jiraBtn = document.createElement('button');
-    jiraBtn.id = "format-jira-btn";
-    jiraBtn.textContent = "JIRA";
-    jiraBtn.type = "button";
-    jiraBtn.className = "button is-outlined is-info is-small";
-    jiraBtn.addEventListener('click', () => setFormat('jira'));
-    formatGroup.appendChild(slackBtn);
-    formatGroup.appendChild(jiraBtn);
-    topBodyRowProfile.appendChild(formatGroup);
-    profileContent.appendChild(topBodyRowProfile);
-    const summaryRow = document.createElement('div');
-    summaryRow.className = "mb-2";
-    const sumCheck = document.createElement('input');
-    sumCheck.type = "checkbox";
-    sumCheck.id = "include-summary";
-    sumCheck.className = "mr-2";
-    const sumLbl = document.createElement('label');
-    sumLbl.textContent = "Include Summary";
-    sumLbl.htmlFor = "include-summary";
-    summaryRow.appendChild(sumCheck);
-    summaryRow.appendChild(sumLbl);
-    profileContent.appendChild(summaryRow);
-    const profileFieldsContainer = document.createElement('div');
-    profileFieldsContainer.id = "profile-fields-container";
-    profileContent.appendChild(profileFieldsContainer);
-    populateProfileTab(profileFieldsContainer);
-    tabProfile.appendChild(profileContent);
-    wrapper.appendChild(tabProfile);
-    
-    // Pinned Tab Content (Quick Access Grid)
-    const tabPinned = document.createElement('div');
-    tabPinned.id = "tab-content-pinned";
-    tabPinned.className = "multitool-tab-content hidden"; // initially hidden
-    const pinnedContent = document.createElement('div');
-    pinnedContent.className = "p-3";
-    pinnedContent.innerHTML = `<p class="has-text-weight-bold mb-2 is-size-7">Quick Access Grid:</p>`;
-    pinnedContent.appendChild(buildPinnedTabContent());
-    tabPinned.appendChild(pinnedContent);
-    wrapper.appendChild(tabPinned);
-    
-    document.body.appendChild(wrapper);
-    
-    // Draggable handle (a small button above the header)
-    const dragHandleBtn = document.createElement('button');
-    dragHandleBtn.innerHTML = "✋";
-    dragHandleBtn.className = "button is-light is-small absolute -top-6 left-1/2 transform -translate-x-1/2 cursor-move";
-    wrapper.appendChild(dragHandleBtn);
-    dragHandleBtn.onmousedown = function(e) {
-      e.preventDefault();
-      let posX = e.clientX, posY = e.clientY;
-      document.onmouseup = closeDrag;
-      document.onmousemove = dragMove;
-      function dragMove(e2) {
-        e2.preventDefault();
-        let deltaX = posX - e2.clientX;
-        let deltaY = e2.clientY - posY;
-        posX = e2.clientX;
-        posY = e2.clientY;
-        wrapper.style.top = (wrapper.offsetTop + deltaY) + "px";
-        wrapper.style.left = (wrapper.offsetLeft - deltaX) + "px";
-      }
-      function closeDrag() {
-        document.onmouseup = null;
-        document.onmousemove = null;
-        localStorage.setItem("multitool_position", JSON.stringify({
-          top: wrapper.style.top,
-          left: wrapper.style.left
-        }));
-      }
-    };
-    
-    setFormat('slack');
-    showTab('profile');
-    initTheme();
-    console.log("[MultiTool Beast] Loaded (v1.44.2) with Bulma CSS inline.");
   }
 
   /***********************************************
@@ -722,9 +685,11 @@ html.dark .button {
     if (newId && newId !== currentTicketId) {
       console.log("[MultiTool Beast] Ticket changed from", currentTicketId, "to", newId);
       currentTicketId = newId;
-      const container = document.getElementById('profile-fields-container');
-      if (container) {
-        populateProfileTab(container);
+      if (window._multitoolWrapper && window._multitoolWrapper.shadowRoot) {
+        const container = window._multitoolWrapper.shadowRoot.getElementById('profile-fields-container');
+        if (container) {
+          populateProfileTab(container);
+        }
       }
     }
   }, 3000);
