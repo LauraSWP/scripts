@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.98
+// @version      1.99
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -9,12 +9,12 @@
 // @match        *://*.freshdesk.com/a/tickets/*
 // @grant        none
 // ==/UserScript==
- 
+
 (function() {
   'use strict';
 
   /***************************************************
-   * 0) Check if this is a Ticket page
+   * 0) Check if current page is a Ticket page
    ***************************************************/
   function isTicketPage() {
     return /\/a\/tickets\/\d+/.test(window.location.pathname);
@@ -25,31 +25,28 @@
   }
 
   /***************************************************
-   * 1) Inject Custom CSS (Pastel “Sway” Style)
+   * 1) Inject Custom CSS (Dark “Sway” Style)
    ***************************************************/
   const customCSS = `
   :root {
-    --sway-bg: #f8faff;
-    --sway-panel-bg: #ffffff;
-    --sway-border: #e2e8f0;
-    --sway-primary: #3B82F6;
-    --sway-secondary: #64748b;
+    /* Dark Sway color palette */
+    --sway-bg: #1f2937;       /* dark background for headers */
+    --sway-panel-bg: #2d3748; /* main panel background */
+    --sway-border: #4a5568;   /* border color */
+    --sway-primary: #3B82F6;  /* highlight color (blue) */
+    --sway-text: #e2e8f0;     /* main text color */
     --sway-radius: 8px;
-    --sway-boxshadow: 0 4px 10px rgba(0,0,0,0.08);
-    --sway-text: #111827;
+    --sway-boxshadow: 0 4px 10px rgba(0,0,0,0.5);
+    --sway-danger: #ef4444;   /* red color for close button */
+    --sway-info: #60a5fa;     /* link color in the dark theme */
   }
-  /* Dark mode overrides */
-  body.dark {
-    background-color: #111827 !important;
-    color: #e0e0e0 !important;
-  }
-  body.dark #multitool-beast-wrapper {
+  body {
     background-color: #1f2937 !important;
-    border-color: #374151 !important;
-    color: #e0e0e0;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    color: var(--sway-text) !important;
+    font-family: "Inter", "Segoe UI", sans-serif;
   }
-  /* Main panel container */
+
+  /* Panel container */
   #multitool-beast-wrapper {
     position: fixed;
     bottom: 80px;
@@ -64,11 +61,11 @@
     border: 1px solid var(--sway-border);
     border-radius: var(--sway-radius);
     box-shadow: var(--sway-boxshadow);
-    font-family: "Inter", "Segoe UI", sans-serif;
     color: var(--sway-text);
     display: none;
   }
-  /* Header bar */
+
+  /* Header */
   .sway-header {
     display: flex;
     align-items: center;
@@ -80,47 +77,59 @@
     border-top-right-radius: var(--sway-radius);
     cursor: move;
   }
-  /* Title area */
-  .sway-titlebar {
+  .sway-header .sway-titlebar {
     display: flex;
     align-items: center;
     gap: 8px;
     font-weight: 600;
     color: var(--sway-text);
   }
-  .sway-titlebar img {
+  .sway-header .sway-titlebar img {
     width: 28px;
     height: 28px;
     border-radius: 50%;
   }
-  /* Header buttons */
   .sway-header-buttons {
     display: flex;
-    gap: 6px;
+    gap: 8px;
   }
+
+  /* Buttons */
   .sway-btn {
     font-size: 12px;
     padding: 4px 8px;
     border-radius: 9999px;
     border: 1px solid var(--sway-border);
-    background-color: #ffffff;
+    background-color: transparent;
     color: var(--sway-text);
     cursor: pointer;
     transition: background-color 0.2s ease;
   }
   .sway-btn:hover {
-    background-color: #f9fafb;
+    background-color: #374151;
   }
-  .sway-btn.btn-danger {
-    background-color: #f87171;
-    border-color: #f87171;
+  .sway-btn-red {
+    border-color: var(--sway-danger);
+    color: #fff;
+    background-color: var(--sway-danger);
+  }
+  .sway-btn-red:hover {
+    background-color: #dc2626;
+  }
+  .sway-btn-blue {
+    border-color: var(--sway-primary);
+    background-color: var(--sway-primary);
     color: #fff;
   }
-  /* Tab bar */
+  .sway-btn-blue:hover {
+    background-color: #2563eb;
+  }
+
+  /* Tabs */
   .sway-tabs {
     display: flex;
     border-bottom: 1px solid var(--sway-border);
-    background-color: #f9fafb;
+    background-color: #1f2937;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -128,26 +137,28 @@
   .sway-tab {
     padding: 10px 16px;
     cursor: pointer;
-    color: var(--sway-secondary);
+    color: #9ca3af; /* lighter text */
     border-bottom: 3px solid transparent;
     transition: all 0.2s ease;
     font-size: 13px;
   }
   .sway-tab:hover {
-    background-color: #f1f5f9;
+    background-color: #374151;
   }
   .sway-tab.active {
     color: var(--sway-primary);
     border-bottom-color: var(--sway-primary);
     font-weight: 600;
   }
+
   /* Content area */
   .sway-content {
     padding: 12px;
     font-size: 14px;
     color: var(--sway-text);
   }
-  /* Field row styling */
+
+  /* Field rows */
   .fieldRow {
     display: flex;
     align-items: center;
@@ -158,25 +169,29 @@
     font-size: 13px;
   }
   .fieldRow .fresh-value {
-    background-color: #f9fafb;
+    background-color: #374151;
     padding: 2px 6px;
     border-radius: 4px;
+    color: #f3f4f6;
   }
+
   /* Draggable handle */
   .sway-handle {
     position: absolute;
     top: -20px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: #e2e8f0;
-    border: 1px solid #cbd5e1;
+    background-color: #374151;
+    border: 1px solid #4b5563;
     border-radius: 16px;
     padding: 2px 6px;
     cursor: move;
     font-size: 12px;
     box-shadow: var(--sway-boxshadow);
+    color: #f3f4f6;
   }
-  /* Open button */
+
+  /* Open button (bottom-right) */
   #sway-open-btn {
     position: fixed;
     bottom: 0;
@@ -187,16 +202,27 @@
     border-bottom-left-radius: var(--sway-radius);
     border-bottom-right-radius: var(--sway-radius);
     padding: 8px;
-    background-color: #ffffff;
-    border: 1px solid var(--sway-border);
+    background-color: #374151;
+    border: 1px solid #4b5563;
     box-shadow: 0 -2px 4px rgba(0,0,0,0.2);
     cursor: pointer;
+  }
+  #sway-open-btn:hover {
+    background-color: #47515e;
   }
   #sway-open-btn img {
     width: 32px;
     height: 32px;
   }
+  a {
+    color: var(--sway-info);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
   `;
+
   const styleEl = document.createElement("style");
   styleEl.textContent = customCSS;
   document.head.appendChild(styleEl);
@@ -244,6 +270,7 @@
             const subject = linkEl.textContent.trim();
             const m = href.match(/\/a\/tickets\/(\d+)/);
             const foundId = m ? m[1] : "";
+            // Skip the current ticket
             if (currentTicketId && parseInt(foundId,10) === parseInt(currentTicketId,10)) return;
             tickets.push({ href: href, subject: subject, date: dt });
           }
@@ -253,6 +280,7 @@
     return tickets;
   }
 
+  // Attempt to fetch CARR from the company page via an invisible iframe
   function fetchCARR(callback) {
     const compLink = document.querySelector('a[href*="/a/companies/"]');
     if (!compLink) return callback("N/A");
@@ -299,86 +327,36 @@
   }
 
   /***************************************************
-   * 3) Dark Mode Functions
-   ***************************************************/
-  function initTheme() {
-    const stored = localStorage.getItem('fdTheme');
-    if (stored === 'theme-dark') {
-      document.body.classList.add('dark');
-    } else {
-      document.body.classList.remove('dark');
-    }
-  }
-  function toggleTheme() {
-    if (document.body.classList.contains('dark')) {
-      document.body.classList.remove('dark');
-      localStorage.setItem('fdTheme', 'theme-light');
-    } else {
-      document.body.classList.add('dark');
-      localStorage.setItem('fdTheme', 'theme-dark');
-    }
-  }
-
-  /***************************************************
-   * 4) Tab Switching Function
+   * 3) Tab Switching
    ***************************************************/
   function showTab(which) {
     const profileTab = document.getElementById('tab-content-profile');
     const pinnedTab = document.getElementById('tab-content-pinned');
     const profileNav = document.getElementById('tab-btn-profile');
     const pinnedNav = document.getElementById('tab-btn-pinned');
-    if (profileTab && pinnedTab && profileNav && pinnedNav) {
-      profileTab.style.display = "none";
-      pinnedTab.style.display = "none";
-      profileNav.classList.remove('active');
-      pinnedNav.classList.remove('active');
-      if (which === 'profile') {
-        profileTab.style.display = "block";
-        profileNav.classList.add('active');
-      } else {
-        pinnedTab.style.display = "block";
-        pinnedNav.classList.add('active');
-      }
+    if (!profileTab || !pinnedTab || !profileNav || !pinnedNav) {
+      console.warn("[MultiTool Beast] Tab elements missing. Possibly not initialized yet.");
+      return;
+    }
+    // Hide both
+    profileTab.style.display = "none";
+    pinnedTab.style.display = "none";
+    profileNav.classList.remove('active');
+    pinnedNav.classList.remove('active');
+
+    // Show the requested tab
+    if (which === 'profile') {
+      profileTab.style.display = "block";
+      profileNav.classList.add('active');
     } else {
-      console.warn("[MultiTool Beast] Tab elements missing");
+      pinnedTab.style.display = "block";
+      pinnedNav.classList.add('active');
     }
   }
 
   /***************************************************
-   * 5) Inline SVG Icons
+   * 4) Single Markdown Format Copy
    ***************************************************/
-  const personIconSVG = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-    <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-    <path d="M2 14s-1 0-1-1 1-4 7-4 7 3 7 4-1 1-1 1H2z"/>
-  </svg>`;
-  const pinIconSVG = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-    <path d="M4.146 14.354a.5.5 0 0 0 .708 0L8 11.207l3.146 3.147a.5.5 0 0 0 .708-.708l-3.147-3.146 3.034-3.034a.5.5 0 0 0-.708-.708L8 6.793 4.966 3.76a.5.5 0 0 0-.708.708l3.034 3.034-3.146 3.146a.5.5 0 0 0 0 .708z"/>
-  </svg>`;
-  const copyIconSVG = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-    <path d="M10 1.5H6a.5.5 0 0 0-.5.5v1H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1.5v-1a.5.5 0 0 0-.5-.5zm-4 1h4v1H6v-1z"/>
-    <path d="M4 5h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
-  </svg>`;
-
-  /***************************************************
-   * 6) Slack/JIRA Formatting & Copy Functions
-   ***************************************************/
-  let formatMode = 'slack';
-  function setFormat(mode) {
-    formatMode = mode;
-    const slackBtn = document.getElementById('format-slack-btn');
-    const jiraBtn = document.getElementById('format-jira-btn');
-    if (!slackBtn || !jiraBtn) return;
-    if (mode === 'slack') {
-      slackBtn.classList.add('active');
-      jiraBtn.classList.remove('active');
-    } else {
-      slackBtn.classList.remove('active');
-      jiraBtn.classList.add('active');
-    }
-  }
   function copyAllSelected() {
     let copyText = "";
     document.querySelectorAll('.fieldRow').forEach(function(row) {
@@ -389,33 +367,31 @@
         if (lblSpan && valEl) {
           let labelText = lblSpan.textContent.replace(/:\s*$/, "");
           let valueText = valEl.textContent.trim();
+
+          // For "Ticket ID", create a clickable markdown link
           if (labelText.toLowerCase() === "ticket id") {
             const numericId = valueText.replace("#", "");
             const link = window.location.origin + "/a/tickets/" + numericId;
-            if (formatMode === 'jira') {
-              labelText = `**${labelText}**`;
-              valueText = `[#${numericId}](${link})`;
-            } else {
-              valueText = `#${numericId} - ${link}`;
-            }
-          } else if (formatMode === 'jira') {
+            // e.g. "**Ticket ID**: [#12345](https://freshdesk.com/a/tickets/12345)"
+            labelText = `**${labelText}**`;
+            valueText = `[#${numericId}](${link})`;
+          } else {
+            // e.g. "**Account**: tealium"
             labelText = `**${labelText}**`;
           }
           copyText += `${labelText}: ${valueText}\n`;
         }
       }
     });
+    // If "Include Summary" is checked, append it
     const summaryCheck = document.getElementById('include-summary');
     if (summaryCheck && summaryCheck.checked) {
       const summaryText = getSummary();
       if (summaryText) {
-        if (formatMode === 'jira') {
-          copyText += `\n**Summary**:\n${summaryText}\n`;
-        } else {
-          copyText += `\nSummary:\n${summaryText}\n`;
-        }
+        copyText += `\n**Summary**:\n${summaryText}\n`;
       }
     }
+    // Perform copy
     const copyBtn = document.getElementById('copy-all-selected-btn');
     navigator.clipboard.writeText(copyText).then(function() {
       if (copyBtn) {
@@ -424,26 +400,34 @@
       }
     });
   }
+
   function createMenuItem(labelText, valueText, withCopy = true) {
     const row = document.createElement('div');
     row.className = "fieldRow";
+    // A small checkbox to select if we want to copy this field
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = true;
     check.className = "field-selector";
     row.appendChild(check);
+
+    // Label
     const lbl = document.createElement('span');
     lbl.textContent = labelText + ": ";
     lbl.className = "fw-bold";
     row.appendChild(lbl);
+
+    // Value
     const finalVal = valueText || "N/A";
     const valSpan = document.createElement('span');
     valSpan.textContent = finalVal;
     valSpan.className = "fresh-value";
     row.appendChild(valSpan);
+
+    // Optional copy button
     if (withCopy) {
       const btn = document.createElement('button');
-      btn.className = "sway-btn-xs sway-btn-outline copy-btn";
+      btn.className = "sway-btn sway-btn-xs copy-btn";
       btn.style.marginLeft = "8px";
       btn.innerHTML = copyIconSVG;
       btn.title = "Copy";
@@ -459,28 +443,31 @@
   }
 
   /***************************************************
-   * 7) Build Quick Access Grid for Pinned Tab
+   * 5) Build Quick Access Grid (Pinned Tab)
    ***************************************************/
   function buildPinnedTabContent() {
     const grid = document.createElement('div');
     grid.style.display = "flex";
     grid.style.flexWrap = "wrap";
     grid.style.gap = "8px";
+
     const items = [
       { icon: '📄', label: 'Docs', link: 'https://docs.google.com/' },
       { icon: '🔗', label: 'Website', link: 'https://www.example.com' },
       { icon: '📊', label: 'Analytics', link: 'https://analytics.google.com' },
       { icon: '🚀', label: 'Rocket', link: 'https://www.spacex.com' }
     ];
+
     items.forEach(function(item) {
       const card = document.createElement('div');
       card.style.width = "calc(50% - 4px)";
-      card.style.backgroundColor = "#f9fafb";
-      card.style.border = "1px solid var(--sway-border)";
+      card.style.backgroundColor = "#374151";
+      card.style.border = "1px solid #4b5563";
       card.style.borderRadius = "6px";
       card.style.textAlign = "center";
       card.style.padding = "12px";
       card.style.cursor = "pointer";
+      card.style.color = "#f3f4f6";
       card.innerHTML = `<div style="font-size:24px;">${item.icon}</div>
                         <div style="margin-top:6px;font-weight:500;">${item.label}</div>`;
       card.addEventListener('click', function() {
@@ -492,7 +479,7 @@
   }
 
   /***************************************************
-   * 8) Populate Profile Tab (Ticket Fields)
+   * 6) Populate Profile Tab
    ***************************************************/
   function populateProfileTab(container) {
     container.innerHTML = "";
@@ -500,15 +487,18 @@
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]'));
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]'));
     const urlsVal = (document.querySelector('textarea[data-test-text-area="customFields.cf_relevant_urls"]') || { value: "" }).value.trim();
+
     container.appendChild(createMenuItem("Ticket ID", tIdVal));
     container.appendChild(createMenuItem("Account", accountVal));
     container.appendChild(createMenuItem("Account Profile", profileVal));
     const carrRow = createMenuItem("CARR", "Fetching...", false);
     container.appendChild(carrRow);
     container.appendChild(createMenuItem("Relevant URLs", urlsVal));
+
+    // "Copy Account/Profile" button
     const copyAccBtn = document.createElement('button');
     copyAccBtn.textContent = "Copy Account/Profile";
-    copyAccBtn.className = "sway-btn-xs sway-btn-outline";
+    copyAccBtn.className = "sway-btn sway-btn-xs";
     copyAccBtn.style.marginTop = "8px";
     copyAccBtn.addEventListener('click', function() {
       const txt = accountVal + "/" + profileVal;
@@ -518,29 +508,38 @@
       });
     });
     container.appendChild(copyAccBtn);
+
+    // Divider
     const hr = document.createElement('hr');
     hr.style.margin = "10px 0";
     container.appendChild(hr);
+
+    // "Recent Tickets" heading
     const rHead = document.createElement('div');
     rHead.textContent = "Recent Tickets (last 7 days)";
     rHead.style.fontWeight = "600";
     rHead.style.marginBottom = "8px";
     container.appendChild(rHead);
+
+    // Render the list of recent tickets
     const recTix = getRecentTickets();
     if (recTix.length > 0) {
       recTix.forEach(function(t) {
         const tDiv = document.createElement('div');
         tDiv.style.marginBottom = "8px";
         tDiv.style.paddingBottom = "8px";
-        tDiv.style.borderBottom = "1px solid var(--sway-border)";
+        tDiv.style.borderBottom = "1px solid #4b5563";
+
         const a = document.createElement('a');
         a.href = t.href;
         a.target = "_blank";
         a.textContent = t.subject;
         a.style.color = "var(--sway-info)";
         tDiv.appendChild(a);
+
+        // Copy link button
         const cpBtn = document.createElement('button');
-        cpBtn.className = "sway-btn-xs sway-btn-outline copy-btn";
+        cpBtn.className = "sway-btn sway-btn-xs";
         cpBtn.style.marginLeft = "8px";
         cpBtn.innerHTML = copyIconSVG;
         cpBtn.title = "Copy Link";
@@ -551,6 +550,7 @@
           });
         });
         tDiv.appendChild(cpBtn);
+
         container.appendChild(tDiv);
       });
     } else {
@@ -558,6 +558,8 @@
       noDiv.textContent = "No tickets in the last 7 days";
       container.appendChild(noDiv);
     }
+
+    // Asynchronously fetch the CARR
     fetchCARR(function(cVal) {
       const vEl = carrRow.querySelector('.fresh-value');
       if (vEl) vEl.textContent = cVal;
@@ -565,68 +567,60 @@
   }
 
   /***************************************************
-   * 9) Initialize the Side Panel Tool
+   * 7) Initialize the Panel
    ***************************************************/
   function initTool() {
     if (document.getElementById("multitool-beast-wrapper")) {
       console.log("[MultiTool Beast] Already initialized");
       return;
     }
-    console.log("[MultiTool Beast] Initializing Sway-style panel.");
-    initTheme();
+    console.log("[MultiTool Beast] Initializing Dark Sway panel.");
+
     const isOpen = false;
+    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
+
+    // Create wrapper
     const wrapper = document.createElement('div');
     wrapper.id = "multitool-beast-wrapper";
-    wrapper.className = "sway-panel";
-    // Set fixed position and dimensions
-    wrapper.style.position = "fixed";
-    wrapper.style.bottom = "80px";
-    wrapper.style.right = "20px";
-    wrapper.style.width = "360px";
-    wrapper.style.minWidth = "200px";
-    wrapper.style.minHeight = "200px";
-    wrapper.style.resize = "both";
-    wrapper.style.overflow = "auto";
-    wrapper.style.display = isOpen ? "block" : "none";
-    localStorage.setItem("multitool_open", isOpen ? "true" : "false");
 
     // Header
     const header = document.createElement('div');
     header.className = "sway-header";
 
-    // Left (Dark mode toggle)
+    // Left side: Title
     const leftDiv = document.createElement('div');
     leftDiv.className = "sway-titlebar";
-    const darkToggle = document.createElement('input');
-    darkToggle.type = "checkbox";
-    darkToggle.id = "dark-toggle";
-    darkToggle.style.marginRight = "6px";
-    darkToggle.addEventListener('change', toggleTheme);
-    leftDiv.appendChild(darkToggle);
-    const darkLabel = document.createElement('span');
-    darkLabel.textContent = " Dark";
-    darkLabel.style.fontSize = "12px";
-    leftDiv.appendChild(darkLabel);
-    header.appendChild(leftDiv);
+    const tealiumIcon = document.createElement('img');
+    tealiumIcon.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
+    tealiumIcon.style.width = "28px";
+    tealiumIcon.style.height = "28px";
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = "MultiTool Beast";
+    titleSpan.style.fontWeight = "600";
+    leftDiv.appendChild(tealiumIcon);
+    leftDiv.appendChild(titleSpan);
 
-    // Right (Up, Down, Close)
+    // Right side: Up, Down, Close (red)
     const rightDiv = document.createElement('div');
     rightDiv.className = "sway-header-buttons";
+
     const upBtn = document.createElement('button');
     upBtn.className = "sway-btn";
     upBtn.textContent = "↑";
     upBtn.title = "Scroll to top";
     upBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
     rightDiv.appendChild(upBtn);
+
     const downBtn = document.createElement('button');
     downBtn.className = "sway-btn";
     downBtn.textContent = "↓";
     downBtn.title = "Scroll to bottom";
     downBtn.addEventListener('click', () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
     rightDiv.appendChild(downBtn);
+
     const closeBtn = document.createElement('button');
-    closeBtn.className = "sway-btn sway-btn-danger";
-    closeBtn.textContent = "×";
+    closeBtn.className = "sway-btn sway-btn-red";
+    closeBtn.textContent = "Close";
     closeBtn.title = "Close MultiTool Beast";
     closeBtn.addEventListener('click', () => {
       wrapper.style.display = "none";
@@ -634,75 +628,49 @@
       localStorage.setItem("multitool_open", "false");
     });
     rightDiv.appendChild(closeBtn);
+
+    header.appendChild(leftDiv);
     header.appendChild(rightDiv);
     wrapper.appendChild(header);
-
-    // Title area (below header)
-    const titleBar = document.createElement('div');
-    titleBar.className = "sway-titlebar";
-    titleBar.style.margin = "8px 12px";
-    const titleImg = document.createElement('img');
-    titleImg.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=200,h=200,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
-    titleImg.style.width = "28px";
-    titleImg.style.height = "28px";
-    const titleText = document.createElement('span');
-    titleText.textContent = "MultiTool Beast";
-    titleText.style.fontWeight = "600";
-    titleText.style.marginLeft = "8px";
-    titleBar.appendChild(titleImg);
-    titleBar.appendChild(titleText);
-    wrapper.appendChild(titleBar);
 
     // Tabs
     const tabsBar = document.createElement('ul');
     tabsBar.className = "sway-tabs";
+
     const profileTab = document.createElement('li');
     profileTab.id = "tab-btn-profile";
     profileTab.className = "sway-tab active";
     profileTab.innerHTML = `${personIconSVG} <span style="margin-left:4px;">Profile</span>`;
     profileTab.addEventListener('click', e => { e.preventDefault(); showTab('profile'); });
     tabsBar.appendChild(profileTab);
+
     const pinnedTab = document.createElement('li');
     pinnedTab.id = "tab-btn-pinned";
     pinnedTab.className = "sway-tab";
     pinnedTab.innerHTML = `${pinIconSVG} <span style="margin-left:4px;">Pinned</span>`;
     pinnedTab.addEventListener('click', e => { e.preventDefault(); showTab('pinned'); });
     tabsBar.appendChild(pinnedTab);
+
     wrapper.appendChild(tabsBar);
 
-    // Tab Content: Profile
+    // Profile Content
     const profileContent = document.createElement('div');
     profileContent.id = "tab-content-profile";
     profileContent.className = "sway-content";
     profileContent.style.display = "block";
-    // Top row: "Copy Selected" and format toggle
-    const topRow = document.createElement('div');
-    topRow.style.display = "flex";
-    topRow.style.justifyContent = "space-between";
-    topRow.style.marginBottom = "8px";
-    const copyBtn = document.createElement('button');
-    copyBtn.id = "copy-all-selected-btn";
-    copyBtn.className = "sway-btn sway-btn-info";
-    copyBtn.textContent = "Copy Selected";
-    copyBtn.addEventListener('click', copyAllSelected);
-    topRow.appendChild(copyBtn);
-    const formatGroup = document.createElement('div');
-    formatGroup.style.display = "flex";
-    formatGroup.style.gap = "6px";
-    const slackBtn = document.createElement('button');
-    slackBtn.id = "format-slack-btn";
-    slackBtn.className = "sway-btn sway-btn-outline active";
-    slackBtn.textContent = "Slack";
-    slackBtn.addEventListener('click', () => setFormat('slack'));
-    const jiraBtn = document.createElement('button');
-    jiraBtn.id = "format-jira-btn";
-    jiraBtn.className = "sway-btn sway-btn-outline";
-    jiraBtn.textContent = "JIRA";
-    jiraBtn.addEventListener('click', () => setFormat('jira'));
-    formatGroup.appendChild(slackBtn);
-    formatGroup.appendChild(jiraBtn);
-    topRow.appendChild(formatGroup);
-    profileContent.appendChild(topRow);
+
+    // "Copy Selected" top row
+    const topRowDiv = document.createElement('div');
+    topRowDiv.style.display = "flex";
+    topRowDiv.style.justifyContent = "space-between";
+    topRowDiv.style.marginBottom = "8px";
+
+    const copyAllBtn = document.createElement('button');
+    copyAllBtn.id = "copy-all-selected-btn";
+    copyAllBtn.className = "sway-btn sway-btn-blue";
+    copyAllBtn.textContent = "Copy Selected";
+    copyAllBtn.addEventListener('click', copyAllSelected);
+    topRowDiv.appendChild(copyAllBtn);
 
     // Summary checkbox
     const summaryDiv = document.createElement('div');
@@ -713,15 +681,18 @@
     sumCheck.style.marginRight = "4px";
     summaryDiv.appendChild(sumCheck);
     summaryDiv.appendChild(document.createTextNode("Include Summary"));
+
+    // Add both to profile content
+    profileContent.appendChild(topRowDiv);
     profileContent.appendChild(summaryDiv);
 
-    // Container for profile fields
+    // Container for the fields
     const profileFieldsContainer = document.createElement('div');
     profileFieldsContainer.id = "profile-fields-container";
     profileContent.appendChild(profileFieldsContainer);
     wrapper.appendChild(profileContent);
 
-    // Tab Content: Pinned
+    // Pinned Content
     const pinnedContent = document.createElement('div');
     pinnedContent.id = "tab-content-pinned";
     pinnedContent.className = "sway-content";
@@ -729,7 +700,7 @@
     pinnedContent.appendChild(buildPinnedTabContent());
     wrapper.appendChild(pinnedContent);
 
-    // Populate profile tab
+    // Populate the Profile tab
     populateProfileTab(profileFieldsContainer);
 
     // Draggable handle
@@ -764,13 +735,17 @@
 
     // Show Profile tab by default
     showTab('profile');
-    console.log("[MultiTool Beast] Sway-style panel loaded.");
+
+    // Place it in the DOM
+    wrapper.style.display = isOpen ? "block" : "none";
     document.body.appendChild(wrapper);
     window._multitoolWrapper = wrapper;
+
+    console.log("[MultiTool Beast] Dark Sway panel loaded.");
   }
 
   /***************************************************
-   * 10) Auto-update on URL change every 3 seconds
+   * 8) Auto-update on URL change (every 3 seconds)
    ***************************************************/
   setInterval(function() {
     const newId = extractTicketId();
@@ -785,11 +760,10 @@
   }, 3000);
 
   /***************************************************
-   * 11) Open Button (Fixed Bottom-Right Tab)
+   * 9) Open Button (bottom-right)
    ***************************************************/
   const openBtn = document.createElement('button');
   openBtn.id = "sway-open-btn";
-  openBtn.className = "sway-open-btn";
   openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png">`;
   openBtn.style.display = (localStorage.getItem("multitool_open") === "true") ? "none" : "block";
   openBtn.addEventListener('click', function() {
@@ -807,12 +781,13 @@
   document.body.appendChild(openBtn);
 
   /***************************************************
-   * 12) Initialize on DOM ready
+   * 10) Initialize on DOM ready
    ***************************************************/
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { setTimeout(initTool, 3000); });
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(initTool, 2000);
+    });
   } else {
-    setTimeout(initTool, 3000);
+    setTimeout(initTool, 2000);
   }
-  
 })();
