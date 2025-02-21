@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.9
+// @version      3.0
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -18,128 +18,131 @@
   const isJira = window.location.hostname.includes("tealium.atlassian.net");
   const isFreshdesk = window.location.hostname.includes("freshdesk.com");
 
-  /***************************************************
-   * JIRA LOGIC
-   ***************************************************/
-  if (window.location.hostname.includes("tealium.atlassian.net")) {
-    // Helper: Extract profile data from URL hash
-    function getProfileDataFromHash() {
-      const hash = window.location.hash || "";
-      if (hash.startsWith("#fromMultiTool=")) {
-        return decodeURIComponent(hash.replace("#fromMultiTool=", ""));
-      }
-      return "";
+ /***************************************************
+ * JIRA LOGIC
+ ***************************************************/
+if (window.location.hostname.includes("tealium.atlassian.net")) {
+  // Helper: Parse the profile data from the URL hash
+  function getProfileDataFromHash() {
+    const hash = window.location.hash || "";
+    if (hash.startsWith("#fromMultiTool=")) {
+      return decodeURIComponent(hash.replace("#fromMultiTool=", ""));
     }
-    
-    // Helper: Inject the profile box (open by default)
-    function injectProfileBox(profileHTML) {
-      const wrapper = document.createElement("div");
-      wrapper.id = "multitool-beast-wrapper-jira";
-      wrapper.style.position = "fixed";
-      wrapper.style.bottom = "80px";
-      wrapper.style.right = "20px";
-      wrapper.style.width = "380px";
-      wrapper.style.height = "600px";
-      wrapper.style.backgroundColor = "#fffaf5";
-      wrapper.style.border = "1px solid #cfd7df";
-      wrapper.style.borderRadius = "16px";
-      wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
-      wrapper.style.zIndex = "999999";
-      wrapper.style.display = "block"; // Open by default
-      wrapper.style.overflowY = "auto";
-      wrapper.style.fontFamily = "sans-serif";
-      
-      // Header with a close button
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.justifyContent = "space-between";
-      header.style.alignItems = "center";
-      header.style.padding = "6px 8px";
-      header.style.borderBottom = "1px solid #d1ccc9";
-      
-      const title = document.createElement("h3");
-      title.textContent = "Profile Info";
-      title.style.margin = "0";
-      title.style.fontSize = "16px";
-      
-      const closeBtn = document.createElement("button");
-      closeBtn.textContent = "×";
-      closeBtn.style.width = "30px";
-      closeBtn.style.height = "30px";
-      closeBtn.style.borderRadius = "50%";
-      closeBtn.style.border = "1px solid #ffaaaa";
-      closeBtn.style.backgroundColor = "#ffe5e5";
-      closeBtn.style.color = "#cc0000";
-      closeBtn.style.cursor = "pointer";
-      closeBtn.addEventListener("click", () => {
-        wrapper.style.display = "none";
-        openBtn.style.display = "block";
-      });
-      
-      header.appendChild(title);
-      header.appendChild(closeBtn);
-      wrapper.appendChild(header);
-      
-      // Insert profile HTML
-      const content = document.createElement("div");
-      content.innerHTML = profileHTML;
-      content.style.padding = "8px 12px";
-      wrapper.appendChild(content);
-      
-      document.body.appendChild(wrapper);
-      
-      // Floating open button (for reopening the box)
-      const openBtn = document.createElement("button");
-      openBtn.id = "sway-open-btn-jira";
-      openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" alt="Open Panel">`;
-      openBtn.style.position = "fixed";
-      openBtn.style.bottom = "0";
-      openBtn.style.right = "0";
-      openBtn.style.zIndex = "99999";
-      openBtn.style.border = "1px solid #4b5563";
-      openBtn.style.backgroundColor = "#374151";
-      openBtn.style.padding = "8px";
-      openBtn.style.borderBottomLeftRadius = "8px";
-      openBtn.style.borderBottomRightRadius = "8px";
-      openBtn.style.display = "none"; // hidden by default, since panel is open
-      openBtn.addEventListener("click", () => {
-        wrapper.style.display = "block";
-        openBtn.style.display = "none";
-      });
-      document.body.appendChild(openBtn);
-    }
-    
-    window.addEventListener("DOMContentLoaded", () => {
-      const data = getProfileDataFromHash();
-      if (data) {
-        injectProfileBox(data);
-      }
-      
-      // Preserve the hash on Next button clicks (so it remains after form reload)
-      function preserveHash() {
-        const nextBtn = document.querySelector("input[type='submit'][value='Next']");
-        if (nextBtn && !nextBtn.dataset.mtoolAttached) {
-          nextBtn.dataset.mtoolAttached = "true";
-          nextBtn.addEventListener("click", () => {
-            const data = getProfileDataFromHash();
-            if (data) {
-              const form = nextBtn.closest("form");
-              if (form) {
-                const urlObj = new URL(form.action, window.location.origin);
-                urlObj.hash = `fromMultiTool=${encodeURIComponent(data)}`;
-                form.action = urlObj.toString();
-              }
-            }
-          });
-        }
-      }
-      preserveHash();
-      
-      const observer = new MutationObserver(() => preserveHash());
-      observer.observe(document.body, { childList: true, subtree: true });
-    });
+    return "";
   }
-  
+
+  // Helper: Inject the profile box (open by default)
+  function injectProfileBox(profileHTML) {
+    const wrapper = document.createElement("div");
+    wrapper.id = "multitool-beast-wrapper-jira";
+    wrapper.style.position = "fixed";
+    wrapper.style.bottom = "80px";
+    wrapper.style.right = "20px";
+    wrapper.style.width = "380px";
+    wrapper.style.height = "600px";
+    wrapper.style.backgroundColor = "#fffaf5";
+    wrapper.style.border = "1px solid #cfd7df";
+    wrapper.style.borderRadius = "16px";
+    wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
+    wrapper.style.zIndex = "999999";
+    wrapper.style.display = "block"; // Open by default
+    wrapper.style.overflowY = "auto";
+    wrapper.style.fontFamily = "sans-serif";
+    
+    // Header with title and close button
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.justifyContent = "space-between";
+    header.style.alignItems = "center";
+    header.style.padding = "6px 8px";
+    header.style.borderBottom = "1px solid #d1ccc9";
+    
+    const title = document.createElement("h3");
+    title.textContent = "Profile Info";
+    title.style.margin = "0";
+    title.style.fontSize = "16px";
+    
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "×";
+    closeBtn.style.width = "30px";
+    closeBtn.style.height = "30px";
+    closeBtn.style.borderRadius = "50%";
+    closeBtn.style.border = "1px solid #ffaaaa";
+    closeBtn.style.backgroundColor = "#ffe5e5";
+    closeBtn.style.color = "#cc0000";
+    closeBtn.style.cursor = "pointer";
+    
+    // Declare openBtn variable in outer scope so it’s accessible in this handler
+    let openBtn;
+    closeBtn.addEventListener("click", () => {
+      wrapper.style.display = "none";
+      if (openBtn) {
+        openBtn.style.display = "block";
+      }
+    });
+    
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    wrapper.appendChild(header);
+    
+    // Insert the profile HTML content
+    const content = document.createElement("div");
+    content.innerHTML = profileHTML;
+    content.style.padding = "8px 12px";
+    wrapper.appendChild(content);
+    
+    document.body.appendChild(wrapper);
+    
+    // Create a floating open button (using same style as Freshdesk)
+    openBtn = document.createElement("button");
+    openBtn.id = "sway-open-btn-jira";
+    openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" alt="Open Panel">`;
+    openBtn.style.position = "fixed";
+    openBtn.style.bottom = "0";
+    openBtn.style.right = "0";
+    openBtn.style.zIndex = "99999";
+    openBtn.style.border = "1px solid #4b5563";
+    openBtn.style.backgroundColor = "#374151";
+    openBtn.style.padding = "8px";
+    openBtn.style.borderBottomLeftRadius = "8px";
+    openBtn.style.borderBottomRightRadius = "8px";
+    openBtn.style.display = "none"; // Hide because panel is open by default
+    openBtn.addEventListener("click", () => {
+      wrapper.style.display = "block";
+      openBtn.style.display = "none";
+    });
+    document.body.appendChild(openBtn);
+  }
+
+  // Helper: Preserve the hash on Next button clicks (so it remains after form reload)
+  function preserveHash() {
+    const nextBtn = document.querySelector("input[type='submit'][value='Next']");
+    if (nextBtn && !nextBtn.dataset.mtoolAttached) {
+      nextBtn.dataset.mtoolAttached = "true";
+      nextBtn.addEventListener("click", () => {
+        const data = getProfileDataFromHash();
+        if (data) {
+          const form = nextBtn.closest("form");
+          if (form) {
+            const urlObj = new URL(form.action, window.location.origin);
+            urlObj.hash = `fromMultiTool=${encodeURIComponent(data)}`;
+            form.action = urlObj.toString();
+          }
+        }
+      });
+    }
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const data = getProfileDataFromHash();
+    if (data) {
+      injectProfileBox(data);
+    }
+    preserveHash();
+    const observer = new MutationObserver(() => preserveHash());
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
 
   /***************************************************
    * FRESHDESK LOGIC
