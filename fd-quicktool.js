@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      3.3
+// @version      3.4
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -1000,8 +1000,10 @@ body.dark-mode-override {
   function openJiraForm() {
     const profileElem = document.getElementById("tab-content-profile");
     const profileHTML = profileElem ? profileElem.innerHTML : "<p>No Profile Data</p>";
-    const newWindow = window.open("https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true", "_blank");
-    newWindow.name = profileHTML;
+    const encodedProfile = encodeURIComponent(profileHTML);
+    // Append both a flag and the encoded profile data in the URL
+    const jiraURL = `https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true&profileData=${encodedProfile}`;
+    window.open(jiraURL, "_blank");
   }
   
   
