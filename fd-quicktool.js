@@ -22,24 +22,35 @@
    * JIRA LOGIC
    ***************************************************/
    if (window.location.hostname.includes("tealium.atlassian.net")) {
-    console.log("Running Jira logic (handshake method)");
+    console.log("Running Jira logic");
   
-    // If this window was opened by Freshdesk, request profile data from opener.
-    if (window.opener) {
-      window.opener.postMessage({ requestProfile: true }, "*");
-    }
-  
-    // Listen for the response from Freshdesk.
+    // Add our message listener in capture mode so we get our message first.
     window.addEventListener("message", (event) => {
-      // Optionally check event.origin to ensure it's from your Freshdesk domain.
-      if (event.data && event.data.fromMultiTool && event.data.profileHTML) {
+      console.log("Jira: received message", event);
+      if (
+        event.data &&
+        event.data.__mySecureMultiTool__ === true &&
+        event.data.profileHTML
+      ) {
         const profileHTML = event.data.profileHTML;
         injectProfileBox(profileHTML);
-        console.log("Injected profile box with data from Freshdesk.");
+        console.log("Jira: Injected profile box from secure postMessage.");
+        // Optionally store in sessionStorage if you want persistence on reload:
+        sessionStorage.setItem("profileData", profileHTML);
+      }
+    }, true); // use capture phase
+  
+    // As a fallback, if the page reloads and our message wasn’t received,
+    // try to inject from sessionStorage.
+    window.addEventListener("DOMContentLoaded", () => {
+      const stored = sessionStorage.getItem("profileData") || "";
+      if (stored.trim()) {
+        injectProfileBox(stored);
+        console.log("Jira: Injected profile box from sessionStorage fallback.");
       }
     });
   
-    // Helper: Inject the profile box (open by default)
+    // Helper: Inject the profile box (use Freshdesk's CSS)
     function injectProfileBox(profileHTML) {
       const wrapper = document.createElement("div");
       wrapper.id = "multitool-beast-wrapper-jira";
@@ -48,8 +59,8 @@
       wrapper.style.right = "20px";
       wrapper.style.width = "380px";
       wrapper.style.height = "600px";
-      wrapper.style.backgroundColor = "#fffaf5";
-      wrapper.style.border = "1px solid #cfd7df";
+      wrapper.style.backgroundColor = "#fffaf5"; // same as Freshdesk's light panel bg
+      wrapper.style.border = "2px solid #d1ccc9";   // same as Freshdesk
       wrapper.style.borderRadius = "16px";
       wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
       wrapper.style.zIndex = "999999";
@@ -57,20 +68,26 @@
       wrapper.style.overflowY = "auto";
       wrapper.style.fontFamily = "sans-serif";
       
-      // Header with title and close button
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.justifyContent = "space-between";
-      header.style.alignItems = "center";
-      header.style.padding = "6px 8px";
-      header.style.borderBottom = "1px solid #d1ccc9";
+      // (Assuming your Freshdesk CSS for drag handle is already injected)
+      const dragHandle = document.createElement("div");
+      dragHandle.className = "drag-handle";
+      wrapper.appendChild(dragHandle);
+      
+      // Top Bar (using Freshdesk styling)
+      const topBar = document.createElement("div");
+      topBar.className = "mtb-top-bar";
+      topBar.style.display = "flex";
+      topBar.style.justifyContent = "space-between";
+      topBar.style.alignItems = "center";
+      topBar.style.padding = "6px 8px";
+      topBar.style.borderBottom = "1px solid #d1ccc9";
       
       const title = document.createElement("h3");
       title.textContent = "Profile Info";
       title.style.margin = "0";
       title.style.fontSize = "16px";
       
-      let openBtn; // Declare here so the close handler can access it
+      let openBtn; // to be used in close handler
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "×";
       closeBtn.style.width = "30px";
@@ -82,22 +99,38 @@
       closeBtn.style.cursor = "pointer";
       closeBtn.addEventListener("click", () => {
         wrapper.style.display = "none";
-        if (openBtn) openBtn.style.display = "block";
+        if (openBtn) {
+          openBtn.style.display = "block";
+        }
       });
       
-      header.appendChild(title);
-      header.appendChild(closeBtn);
-      wrapper.appendChild(header);
+      topBar.appendChild(title);
+      topBar.appendChild(closeBtn);
+      wrapper.appendChild(topBar);
       
-      // Insert profile content
+      // Header with gradient (if needed)
+      const headerEl = document.createElement("div");
+      headerEl.className = "mtb-header";
+      const tealiumLogo = document.createElement("img");
+      tealiumLogo.className = "mtb-logo";
+      tealiumLogo.src = "https://github.com/LauraSWP/scripts/blob/main/assets/tealiumlogo.png?raw=true";
+      const h3 = document.createElement("h3");
+      h3.className = "mtb-title";
+      h3.textContent = "MultiTool Beast";
+      headerEl.appendChild(tealiumLogo);
+      headerEl.appendChild(h3);
+      wrapper.appendChild(headerEl);
+      
+      // Main content area
       const content = document.createElement("div");
-      content.innerHTML = profileHTML;
+      content.className = "mtb-content";
       content.style.padding = "8px 12px";
+      content.innerHTML = profileHTML;
       wrapper.appendChild(content);
       
       document.body.appendChild(wrapper);
       
-      // Create a floating open button (same style as on Freshdesk)
+      // Floating open button (Freshdesk style)
       openBtn = document.createElement("button");
       openBtn.id = "sway-open-btn-jira";
       openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" alt="Open Panel">`;
@@ -117,31 +150,8 @@
       });
       document.body.appendChild(openBtn);
     }
-    
-    // Optional: Preserve query parameter on Next button clicks if needed
-    function preserveQueryParam() {
-      const nextBtn = document.querySelector("input[type='submit'][value='Next']");
-      if (nextBtn && !nextBtn.dataset.mtoolAttached) {
-        nextBtn.dataset.mtoolAttached = "true";
-        nextBtn.addEventListener("click", () => {
-          const form = nextBtn.closest("form");
-          if (form) {
-            const urlObj = new URL(form.action, window.location.origin);
-            urlObj.searchParams.set("fromMultiTool", "true");
-            form.action = urlObj.toString();
-          }
-        });
-      }
-    }
-    
-    window.addEventListener("DOMContentLoaded", () => {
-      preserveQueryParam();
-      const observer = new MutationObserver(() => preserveQueryParam());
-      observer.observe(document.body, { childList: true, subtree: true });
-    });
   }
   
-
   /***************************************************
    * FRESHDESK LOGIC
    ***************************************************/
@@ -994,22 +1004,9 @@ body.dark-mode-override {
    * 8) Open Jira Form – Pre-fill Data into Create Issue Page
    ***************************************************/
   function openJiraForm() {
-    const profileElem = document.getElementById("tab-content-profile");
-    const profileHTML = profileElem ? profileElem.innerHTML : "<p>No Profile Data</p>";
-    // Open Jira with a flag (optional) in the URL.
-    const newWindow = window.open("https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true", "_blank");
-    
-    // Listen for a request message from the new window.
-    function handler(event) {
-      // Optionally check event.origin here if desired.
-      if (event.source === newWindow && event.data && event.data.requestProfile) {
-        // Send the profile data back to Jira.
-        newWindow.postMessage({ fromMultiTool: true, profileHTML: profileHTML }, "https://tealium.atlassian.net");
-        window.removeEventListener("message", handler);
-      }
-    }
-    window.addEventListener("message", handler);
+    window.open("https://tealium.atlassian.net/secure/CreateIssue.jspa", "_blank");
   }
+  
   
   /***************************************************
    * 9) Main init

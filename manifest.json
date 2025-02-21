@@ -1,0 +1,21 @@
+{
+    "manifest_version": 3,
+    "name": "Freshdesk Ticket MultiTool for Tealium",
+    "version": "3.1",
+    "description": "MultiTool for Tealium Agents",
+    "content_scripts": [
+      {
+        "matches": [
+          "*://*.freshdesk.com/a/tickets/*",
+          "*://tealium.atlassian.net/*"
+        ],
+        "js": ["content_script.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    "icons": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  }
+  
