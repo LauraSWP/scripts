@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.3
+// @version      2.4
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -21,14 +21,26 @@
 // ----- Jira MultiTool Code Below -----
 // On the Jira domain:
 if (window.location.hostname.includes("tealium.atlassian.net")) {
-  // On every page load, if window.name has data, store it in localStorage
-  if (window.name && window.name.trim()) {
-    console.log("Saving profile data from window.name to localStorage.");
-    localStorage.setItem("fromMultiToolProfile", window.name);
+  // Function to attach a click listener to the "Next" button to store profile data
+  function attachNextButtonListener() {
+    const nextBtn = document.querySelector("input[type='submit'][value='Next']");
+    if (nextBtn && !nextBtn.dataset.multitoolListenerAttached) {
+      nextBtn.dataset.multitoolListenerAttached = "true";
+      nextBtn.addEventListener("click", () => {
+        if (window.name && window.name.trim()) {
+          sessionStorage.setItem("fromMultiToolProfile", window.name);
+          console.log("Saved profile data from window.name to sessionStorage.");
+        }
+      });
+    }
   }
+  // Run immediately and observe DOM changes for the Next button.
+  attachNextButtonListener();
+  const observer = new MutationObserver(attachNextButtonListener);
+  observer.observe(document.body, { childList: true, subtree: true });
   
+  // Function to inject the profile panel
   function injectProfilePanel(profileData) {
-    console.log("Injecting profile panel with stored profile data.");
     const panel = document.createElement("div");
     panel.id = "jira-profile-panel";
     panel.style.position = "fixed";
@@ -44,7 +56,6 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
     panel.style.padding = "10px";
     panel.style.zIndex = "10000";
     
-    // Header with title and close button
     const header = document.createElement("div");
     header.style.display = "flex";
     header.style.justifyContent = "space-between";
@@ -71,14 +82,12 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
     header.appendChild(closeBtn);
     panel.appendChild(header);
     
-    // Insert the stored profile data (full HTML)
     const content = document.createElement("div");
     content.innerHTML = profileData;
     panel.appendChild(content);
     
     document.body.appendChild(panel);
     
-    // Create a floating reopen button (hidden while panel is open)
     const openBtn = document.createElement("button");
     openBtn.id = "jira-open-profile-btn";
     openBtn.textContent = "Open Profile Info";
@@ -92,17 +101,24 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
     openBtn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
     openBtn.style.zIndex = "10000";
     openBtn.addEventListener("click", () => {
-       panel.style.display = "block";
-       openBtn.style.display = "none";
+      panel.style.display = "block";
+      openBtn.style.display = "none";
     });
-    openBtn.style.display = "none"; // Initially, panel is shown
+    openBtn.style.display = "none";
     document.body.appendChild(openBtn);
   }
   
+  // On DOMContentLoaded, retrieve stored profile data and inject the panel.
   window.addEventListener("DOMContentLoaded", () => {
-    const storedProfile = localStorage.getItem("fromMultiToolProfile");
-    if (storedProfile && storedProfile.trim()) {
-      injectProfilePanel(storedProfile);
+    let profileData = sessionStorage.getItem("fromMultiToolProfile");
+    if (!profileData && window.name && window.name.trim()) {
+      profileData = window.name;
+    }
+    if (profileData && profileData.trim()) {
+      injectProfilePanel(profileData);
+      console.log("Profile panel injected with data.");
+    } else {
+      console.log("No profile data found.");
     }
   });
 }
