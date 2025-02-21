@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      3.5
+// @version      3.6
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -22,34 +22,21 @@
    * JIRA LOGIC
    ***************************************************/
    if (window.location.hostname.includes("tealium.atlassian.net")) {
-    console.log("Running Jira logic");
+    console.log("Running Jira logic (handshake method)");
   
-    // Listen for messages from Freshdesk
+    // If this window was opened by Freshdesk, request profile data from opener.
+    if (window.opener) {
+      window.opener.postMessage({ requestProfile: true }, "*");
+    }
+  
+    // Listen for the response from Freshdesk.
     window.addEventListener("message", (event) => {
-      // (Optionally) Verify event.origin if you wish, e.g.:
-      // if (event.origin !== "https://your-freshdesk-domain.com") return;
+      // Optionally check event.origin to ensure it's from your Freshdesk domain.
       if (event.data && event.data.fromMultiTool && event.data.profileHTML) {
         const profileHTML = event.data.profileHTML;
         injectProfileBox(profileHTML);
-        console.log("Injected profile box from postMessage.");
-        // Optionally store in sessionStorage so it persists after reload
-        sessionStorage.setItem("profileData", profileHTML);
+        console.log("Injected profile box with data from Freshdesk.");
       }
-    }, false);
-  
-    // In case the page reloads and we lose the message,
-    // try reading from sessionStorage
-    window.addEventListener("DOMContentLoaded", () => {
-      if (!document.getElementById("multitool-beast-wrapper-jira")) {
-        const storedData = sessionStorage.getItem("profileData");
-        if (storedData && storedData.trim()) {
-          injectProfileBox(storedData);
-          console.log("Injected profile box from sessionStorage.");
-        }
-      }
-      preserveQueryParam();
-      const observer = new MutationObserver(() => preserveQueryParam());
-      observer.observe(document.body, { childList: true, subtree: true });
     });
   
     // Helper: Inject the profile box (open by default)
@@ -83,7 +70,7 @@
       title.style.margin = "0";
       title.style.fontSize = "16px";
       
-      let openBtn; // to be used later
+      let openBtn; // Declare here so the close handler can access it
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "×";
       closeBtn.style.width = "30px";
@@ -110,7 +97,7 @@
       
       document.body.appendChild(wrapper);
       
-      // Create the floating open button (same style as Freshdesk)
+      // Create a floating open button (same style as on Freshdesk)
       openBtn = document.createElement("button");
       openBtn.id = "sway-open-btn-jira";
       openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" alt="Open Panel">`;
@@ -130,8 +117,8 @@
       });
       document.body.appendChild(openBtn);
     }
-  
-    // Helper: Preserve the query parameter on Next button clicks (so it remains after form reload)
+    
+    // Optional: Preserve query parameter on Next button clicks if needed
     function preserveQueryParam() {
       const nextBtn = document.querySelector("input[type='submit'][value='Next']");
       if (nextBtn && !nextBtn.dataset.mtoolAttached) {
@@ -141,18 +128,18 @@
           if (form) {
             const urlObj = new URL(form.action, window.location.origin);
             urlObj.searchParams.set("fromMultiTool", "true");
-            const params = new URLSearchParams(window.location.search);
-            // Preserve the profileData if it exists
-            if (params.has("profileData")) {
-              urlObj.searchParams.set("profileData", params.get("profileData"));
-            }
             form.action = urlObj.toString();
           }
         });
       }
     }
+    
+    window.addEventListener("DOMContentLoaded", () => {
+      preserveQueryParam();
+      const observer = new MutationObserver(() => preserveQueryParam());
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
   }
-  
   
 
   /***************************************************
@@ -1009,18 +996,20 @@ body.dark-mode-override {
   function openJiraForm() {
     const profileElem = document.getElementById("tab-content-profile");
     const profileHTML = profileElem ? profileElem.innerHTML : "<p>No Profile Data</p>";
-    // Open Jira with a flag in the query parameter
+    // Open Jira with a flag (optional) in the URL.
     const newWindow = window.open("https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true", "_blank");
-    // Wait a moment to ensure the new window is ready, then send the data
-    setTimeout(() => {
-      newWindow.postMessage(
-        { fromMultiTool: true, profileHTML: profileHTML },
-        "https://tealium.atlassian.net"
-      );
-    }, 500);
+    
+    // Listen for a request message from the new window.
+    function handler(event) {
+      // Optionally check event.origin here if desired.
+      if (event.source === newWindow && event.data && event.data.requestProfile) {
+        // Send the profile data back to Jira.
+        newWindow.postMessage({ fromMultiTool: true, profileHTML: profileHTML }, "https://tealium.atlassian.net");
+        window.removeEventListener("message", handler);
+      }
+    }
+    window.addEventListener("message", handler);
   }
-  
-  
   
   /***************************************************
    * 9) Main init
