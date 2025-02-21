@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.1
+// @version      2.2
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -22,8 +22,8 @@
 // On the Jira domain:
 if (window.location.hostname.includes("tealium.atlassian.net")) {
   window.addEventListener("DOMContentLoaded", () => {
-    const storedProfile = sessionStorage.getItem("fromMultiTool");
-    if (storedProfile) {
+    const profileData = window.name; // retrieve the profile HTML passed from Freshdesk
+    if (profileData && profileData.trim()) {
       // Create the main panel container
       const panel = document.createElement("div");
       panel.id = "jira-profile-panel";
@@ -69,12 +69,12 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
       
       // Insert the stored profile HTML
       const content = document.createElement("div");
-      content.innerHTML = storedProfile;
+      content.innerHTML = profileData;
       panel.appendChild(content);
       
       document.body.appendChild(panel);
       
-      // Create a floating button to re-open the panel if it’s closed
+      // Create a floating button to reopen the panel if closed
       const openBtn = document.createElement("button");
       openBtn.id = "jira-open-profile-btn";
       openBtn.textContent = "Open Profile Info";
@@ -91,7 +91,7 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
          panel.style.display = "block";
          openBtn.style.display = "none";
       });
-      // Hide the open button initially since the panel is open by default.
+      // Initially, panel is shown so hide the open button.
       openBtn.style.display = "none";
       document.body.appendChild(openBtn);
     }
@@ -941,15 +941,14 @@ body.dark-mode-override {
    * 8) Open Jira Form – Pre-fill Data into Create Issue Page
    ***************************************************/
   function openJiraForm() {
-    const jiraCreateURL = "https://tealium.atlassian.net/secure/CreateIssue.jspa";
+    const jiraCreateURL = "https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true";
     const profileContentElem = document.getElementById("tab-content-profile");
     const profileHTML = profileContentElem ? profileContentElem.innerHTML : "<p>No Profile Data</p>";
-    // Save the full profile HTML in sessionStorage (works on the same domain)
-    sessionStorage.setItem("fromMultiTool", profileHTML);
-    window.open(jiraCreateURL, '_blank');
+    const newWindow = window.open(jiraCreateURL, "_blank");
+    // Save the profile HTML in window.name – accessible on the Jira domain.
+    newWindow.name = profileHTML;
   }
   
-
   /***************************************************
    * 9) Main init
    ***************************************************/
