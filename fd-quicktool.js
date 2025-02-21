@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.7
+// @version      2.8
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -14,137 +14,153 @@
 (function() {
   'use strict';
 
-  // Domain check: determine if we're on Freshdesk or Jira
-  const isFreshdesk = window.location.hostname.includes("freshdesk.com");
+  // Domain checks
   const isJira = window.location.hostname.includes("tealium.atlassian.net");
+  const isFreshdesk = window.location.hostname.includes("freshdesk.com");
 
-// ----- Jira MultiTool Code Below -----
-// On the Jira domain:
-if (window.location.hostname.includes("tealium.atlassian.net")) {
-  // A helper to inject your box
-  function injectProfileBox(profileHTML) {
-    // Create the main wrapper (open by default)
-    const wrapper = document.createElement("div");
-    wrapper.id = "multitool-beast-wrapper-jira";
-    wrapper.style.position = "fixed";
-    wrapper.style.bottom = "80px";
-    wrapper.style.right = "20px";
-    wrapper.style.width = "380px";
-    wrapper.style.height = "600px";
-    wrapper.style.backgroundColor = "#fffaf5";
-    wrapper.style.border = "1px solid #cfd7df";
-    wrapper.style.borderRadius = "16px";
-    wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
-    wrapper.style.zIndex = "999999";
-    wrapper.style.display = "block"; // open by default
-    wrapper.style.overflowY = "auto";
-    wrapper.style.fontFamily = "sans-serif";
+  /***************************************************
+   * JIRA LOGIC
+   ***************************************************/
+  if (isJira) {
+    // If we’re on Jira, run the Jira snippet, then return
+    console.log("Running on Jira domain...");
 
-    // Header with a close button
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.justifyContent = "space-between";
-    header.style.alignItems = "center";
-    header.style.padding = "6px 8px";
-    header.style.borderBottom = "1px solid #d1ccc9";
-
-    const title = document.createElement("h3");
-    title.textContent = "Profile Info";
-    title.style.margin = "0";
-    title.style.fontSize = "16px";
-
-    // Same style "close button" as your Freshdesk box
-    const closeBtn = document.createElement("button");
-    closeBtn.textContent = "×";
-    closeBtn.style.width = "30px";
-    closeBtn.style.height = "30px";
-    closeBtn.style.borderRadius = "50%";
-    closeBtn.style.border = "1px solid #ffaaaa";
-    closeBtn.style.backgroundColor = "#ffe5e5";
-    closeBtn.style.color = "#cc0000";
-    closeBtn.style.cursor = "pointer";
-    closeBtn.addEventListener("click", () => {
-      wrapper.style.display = "none";
-      openBtn.style.display = "block";
-    });
-
-    header.appendChild(title);
-    header.appendChild(closeBtn);
-    wrapper.appendChild(header);
-
-    // Insert the profile HTML
-    const content = document.createElement("div");
-    content.innerHTML = profileHTML;
-    content.style.padding = "8px 12px";
-    wrapper.appendChild(content);
-
-    // Add the wrapper to the page
-    document.body.appendChild(wrapper);
-
-    // Create the floating "open" button (same style as your Freshdesk open button)
-    const openBtn = document.createElement("button");
-    openBtn.id = "sway-open-btn-jira";
-    openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png">`;
-    openBtn.style.position = "fixed";
-    openBtn.style.bottom = "0";
-    openBtn.style.right = "0";
-    openBtn.style.zIndex = "99999";
-    openBtn.style.border = "1px solid #4b5563";
-    openBtn.style.backgroundColor = "#374151";
-    openBtn.style.padding = "8px";
-    openBtn.style.borderBottomLeftRadius = "8px";
-    openBtn.style.borderBottomRightRadius = "8px";
-    openBtn.style.display = "none"; // hide by default, since box is open
-    openBtn.addEventListener("click", () => {
-      wrapper.style.display = "block";
-      openBtn.style.display = "none";
-    });
-    document.body.appendChild(openBtn);
-  }
-
-  // A helper to parse the hash param
-  function getProfileDataFromHash() {
-    const hash = window.location.hash || "";
-    if (hash.startsWith("#fromMultiTool=")) {
-      return decodeURIComponent(hash.replace("#fromMultiTool=", ""));
+    // 1) Parse the hash param for your encoded profile HTML
+    function getProfileDataFromHash() {
+      const hash = window.location.hash || "";
+      if (hash.startsWith("#fromMultiTool=")) {
+        return decodeURIComponent(hash.replace("#fromMultiTool=", ""));
+      }
+      return "";
     }
-    return "";
-  }
 
-  // Preserve the hash by rewriting the form action each time the Next button appears
-  function preserveHash() {
-    const nextBtn = document.querySelector("input[type='submit'][value='Next']");
-    if (nextBtn && !nextBtn.dataset.mtoolAttached) {
-      nextBtn.dataset.mtoolAttached = "true";
-      nextBtn.addEventListener("click", (evt) => {
-        const data = getProfileDataFromHash();
-        if (data) {
-          // We rewrite the form action so it retains the #fromMultiTool=... 
-          const form = nextBtn.closest("form");
-          if (form) {
-            const urlObj = new URL(form.action, window.location.origin);
-            urlObj.hash = `fromMultiTool=${encodeURIComponent(data)}`;
-            form.action = urlObj.toString();
+    // 2) Preserve the hash by rewriting the form action each time the Next button appears
+    function preserveHash() {
+      const nextBtn = document.querySelector("input[type='submit'][value='Next']");
+      if (nextBtn && !nextBtn.dataset.mtoolAttached) {
+        nextBtn.dataset.mtoolAttached = "true";
+        nextBtn.addEventListener("click", () => {
+          const data = getProfileDataFromHash();
+          if (data) {
+            // We rewrite the form action so it retains the #fromMultiTool=...
+            const form = nextBtn.closest("form");
+            if (form) {
+              const urlObj = new URL(form.action, window.location.origin);
+              urlObj.hash = `fromMultiTool=${encodeURIComponent(data)}`;
+              form.action = urlObj.toString();
+            }
           }
-        }
-      });
+        });
+      }
     }
+
+    // 3) Inject the profile box (open by default, with the same style “close” button & “open” button)
+    function injectProfileBox(profileHTML) {
+      console.log("Injecting Jira profile box...");
+
+      // Main wrapper
+      const wrapper = document.createElement("div");
+      wrapper.id = "multitool-beast-wrapper-jira";
+      wrapper.style.position = "fixed";
+      wrapper.style.bottom = "80px";
+      wrapper.style.right = "20px";
+      wrapper.style.width = "380px";
+      wrapper.style.height = "600px";
+      wrapper.style.backgroundColor = "#fffaf5";
+      wrapper.style.border = "1px solid #cfd7df";
+      wrapper.style.borderRadius = "16px";
+      wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
+      wrapper.style.zIndex = "999999";
+      wrapper.style.display = "block"; // open by default
+      wrapper.style.overflowY = "auto";
+      wrapper.style.fontFamily = "sans-serif";
+
+      // Header with close button
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.justifyContent = "space-between";
+      header.style.alignItems = "center";
+      header.style.padding = "6px 8px";
+      header.style.borderBottom = "1px solid #d1ccc9";
+
+      const title = document.createElement("h3");
+      title.textContent = "Profile Info";
+      title.style.margin = "0";
+      title.style.fontSize = "16px";
+
+      const closeBtn = document.createElement("button");
+      closeBtn.textContent = "×";
+      closeBtn.style.width = "30px";
+      closeBtn.style.height = "30px";
+      closeBtn.style.borderRadius = "50%";
+      closeBtn.style.border = "1px solid #ffaaaa";
+      closeBtn.style.backgroundColor = "#ffe5e5";
+      closeBtn.style.color = "#cc0000";
+      closeBtn.style.cursor = "pointer";
+      closeBtn.addEventListener("click", () => {
+        wrapper.style.display = "none";
+        openBtn.style.display = "block";
+      });
+
+      header.appendChild(title);
+      header.appendChild(closeBtn);
+      wrapper.appendChild(header);
+
+      // Insert the profile HTML
+      const content = document.createElement("div");
+      content.innerHTML = profileHTML;
+      content.style.padding = "8px 12px";
+      wrapper.appendChild(content);
+
+      // Add the wrapper to the page
+      document.body.appendChild(wrapper);
+
+      // Create the floating "open" button
+      const openBtn = document.createElement("button");
+      openBtn.id = "sway-open-btn-jira";
+      openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png">`;
+      openBtn.style.position = "fixed";
+      openBtn.style.bottom = "0";
+      openBtn.style.right = "0";
+      openBtn.style.zIndex = "99999";
+      openBtn.style.border = "1px solid #4b5563";
+      openBtn.style.backgroundColor = "#374151";
+      openBtn.style.padding = "8px";
+      openBtn.style.borderBottomLeftRadius = "8px";
+      openBtn.style.borderBottomRightRadius = "8px";
+      openBtn.style.display = "none"; // hidden by default
+      openBtn.addEventListener("click", () => {
+        wrapper.style.display = "block";
+        openBtn.style.display = "none";
+      });
+      document.body.appendChild(openBtn);
+    }
+
+    // 4) On DOMContentLoaded, parse the hash, inject the box, watch for Next
+    window.addEventListener("DOMContentLoaded", () => {
+      const data = getProfileDataFromHash();
+      if (data) {
+        injectProfileBox(data);
+      }
+      // Watch for Next button
+      const observer = new MutationObserver(() => preserveHash());
+      observer.observe(document.body, { childList: true, subtree: true });
+      // Run once immediately
+      preserveHash();
+    });
+
+    return; // Stop here so we don’t run Freshdesk logic
   }
 
-  // On DOMContentLoaded, parse the hash and inject the box if data is present
-  window.addEventListener("DOMContentLoaded", () => {
-    const data = getProfileDataFromHash();
-    if (data) {
-      injectProfileBox(data);
-    }
-    // Watch for Next button
-    const observer = new MutationObserver(() => preserveHash());
-    observer.observe(document.body, { childList: true, subtree: true });
-    // Run once immediately
-    preserveHash();
-  });
-}
+  /***************************************************
+   * FRESHDESK LOGIC
+   ***************************************************/
+  if (!isFreshdesk) {
+    // If it’s neither Jira nor Freshdesk, we do nothing.
+    return;
+  }
 
+  console.log("Running on Freshdesk domain...");
   /***************************************************
    * 0) SVG Icons
    ***************************************************/
