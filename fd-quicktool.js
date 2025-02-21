@@ -19,100 +19,99 @@
   const isJira = window.location.hostname.includes("tealium.atlassian.net");
 
 // ----- Jira MultiTool Code Below -----
+// On the Jira domain:
 if (window.location.hostname.includes("tealium.atlassian.net")) {
-  window.addEventListener("DOMContentLoaded", () => {
-    const params = new URLSearchParams(window.location.search);
-    const encodedProfile = params.get("profileData");
-    if (encodedProfile) {
-      let profileHTML = "";
-      try {
-        profileHTML = decodeURIComponent(escape(atob(encodedProfile)));
-      } catch (e) {
-        console.error("Error decoding profile data:", e);
-      }
-      // Create the main panel container
-      const panel = document.createElement("div");
-      panel.id = "jira-profile-panel";
-      panel.style.position = "fixed";
-      panel.style.top = "10px";
-      panel.style.right = "10px";
-      panel.style.width = "350px";
-      panel.style.maxHeight = "90vh";
-      panel.style.overflowY = "auto";
-      panel.style.backgroundColor = "#fff";
-      panel.style.border = "1px solid #ccc";
-      panel.style.borderRadius = "8px";
-      panel.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
-      panel.style.padding = "10px";
-      panel.style.zIndex = "10000";
-      
-      // Build a header with title and a close button
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.justifyContent = "space-between";
-      header.style.alignItems = "center";
-      
-      const title = document.createElement("h3");
-      title.textContent = "Profile Info";
-      title.style.margin = "0";
-      title.style.fontSize = "16px";
-      
-      const closeBtn = document.createElement("button");
-      closeBtn.textContent = "×";
-      closeBtn.style.fontSize = "16px";
-      closeBtn.style.lineHeight = "16px";
-      closeBtn.style.border = "none";
-      closeBtn.style.background = "transparent";
-      closeBtn.style.cursor = "pointer";
-      closeBtn.addEventListener("click", () => {
-        panel.style.display = "none";
-        openBtn.style.display = "block";
-      });
-      
-      header.appendChild(title);
-      header.appendChild(closeBtn);
-      panel.appendChild(header);
-      
-      // Insert the decoded profile HTML
-      const content = document.createElement("div");
-      content.innerHTML = profileHTML;
-      panel.appendChild(content);
-      
-      document.body.appendChild(panel);
-      
-      // Create a floating button to re-open the panel if needed
-      const openBtn = document.createElement("button");
-      openBtn.id = "jira-open-profile-btn";
-      openBtn.textContent = "Open Profile Info";
-      openBtn.style.position = "fixed";
-      openBtn.style.bottom = "10px";
-      openBtn.style.right = "10px";
-      openBtn.style.padding = "8px 12px";
-      openBtn.style.borderRadius = "4px";
-      openBtn.style.border = "1px solid #ccc";
-      openBtn.style.backgroundColor = "#fff";
-      openBtn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
-      openBtn.style.zIndex = "10000";
-      openBtn.addEventListener("click", () => {
-         panel.style.display = "block";
-         openBtn.style.display = "none";
-      });
-      openBtn.style.display = "none"; // Hide it initially since the panel is shown
-      document.body.appendChild(openBtn);
-    }
-  });
+  // If the query parameter exists, set a session flag.
+  if (window.location.search.includes("fromMultiTool=true")) {
+    console.log("fromMultiTool parameter detected. Setting sessionStorage flag.");
+    sessionStorage.setItem("fromMultiTool", "true");
+  }
 
-  // Check for the session flag and inject the panel when ready
-  if (sessionStorage.getItem("fromMultiTool") === "true") {
-    console.log("Session flag 'fromMultiTool' is set.");
-    if (document.readyState === "loading") {
-      window.addEventListener("DOMContentLoaded", injectProfilePanel);
-    } else {
+  // Define the injection function.
+  function injectProfilePanel() {
+    console.log("Injecting Jira profile panel.");
+    // Main panel container
+    const panel = document.createElement("div");
+    panel.id = "jira-profile-panel";
+    panel.style.position = "fixed";
+    panel.style.top = "10px";
+    panel.style.right = "10px";
+    panel.style.width = "350px";
+    panel.style.maxHeight = "90vh";
+    panel.style.overflowY = "auto";
+    panel.style.backgroundColor = "#fff";
+    panel.style.border = "1px solid #ccc";
+    panel.style.borderRadius = "8px";
+    panel.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+    panel.style.padding = "10px";
+    panel.style.zIndex = "10000";
+
+    // Header with title and close button
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.justifyContent = "space-between";
+    header.style.alignItems = "center";
+
+    const title = document.createElement("h3");
+    title.textContent = "Profile Info";
+    title.style.margin = "0";
+    title.style.fontSize = "16px";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "×";
+    closeBtn.style.fontSize = "16px";
+    closeBtn.style.lineHeight = "16px";
+    closeBtn.style.border = "none";
+    closeBtn.style.background = "transparent";
+    closeBtn.style.cursor = "pointer";
+    // When closing, hide panel and show reopen button.
+    closeBtn.addEventListener("click", () => {
+      panel.style.display = "none";
+      openBtn.style.display = "block";
+    });
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    // Retrieve the profile data (make sure your openJiraForm stored the full HTML)
+    const profileData = localStorage.getItem("latest_account_profile") || "No data available";
+    // Here, we're assuming you stored full HTML from your Freshdesk profile tab.
+    const content = document.createElement("div");
+    content.innerHTML = profileData;
+    panel.appendChild(content);
+
+    document.body.appendChild(panel);
+
+    // Create a floating button to reopen the panel if needed.
+    const openBtn = document.createElement("button");
+    openBtn.id = "jira-open-profile-btn";
+    openBtn.textContent = "Open Profile Info";
+    openBtn.style.position = "fixed";
+    openBtn.style.bottom = "10px";
+    openBtn.style.right = "10px";
+    openBtn.style.padding = "8px 12px";
+    openBtn.style.borderRadius = "4px";
+    openBtn.style.border = "1px solid #ccc";
+    openBtn.style.backgroundColor = "#fff";
+    openBtn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+    openBtn.style.zIndex = "10000";
+    openBtn.addEventListener("click", () => {
+      panel.style.display = "block";
+      openBtn.style.display = "none";
+    });
+    // Initially hide the open button because panel is visible.
+    openBtn.style.display = "none";
+    document.body.appendChild(openBtn);
+  }
+
+  // On DOMContentLoaded, if the session flag is set, inject the profile panel.
+  window.addEventListener("DOMContentLoaded", () => {
+    if (sessionStorage.getItem("fromMultiTool") === "true") {
       injectProfilePanel();
     }
-  }
+  });
 }
-
 
   /***************************************************
    * 0) SVG Icons
@@ -204,7 +203,7 @@ body.dark-mode-override {
   width: 380px;
   min-width: 280px;
   height: 600px;
-  background-color: var(--panel-bg);
+  background-color: #ffffff;
   color: var(--panel-fg);
   border: 1px solid #cfd7df;
   border-radius: 16px;
