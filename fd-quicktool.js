@@ -22,42 +22,71 @@
 if (isJira) {
   console.log("Jira page detected – running Jira-specific tasks.");
 
-  // Check if the user came from the MultiTool (i.e., clicked the open Jira form button)
+  // Check if the user came from our MultiTool open Jira button
   if (localStorage.getItem("openJiraFromMultiTool") === "true") {
-    // Create a panel to display the stored profile info
-    const profileDiv = document.createElement('div');
-    profileDiv.style.position = "fixed";
-    profileDiv.style.top = "10px";
-    profileDiv.style.right = "10px";
-    profileDiv.style.backgroundColor = "#f7f7f7";
-    profileDiv.style.border = "1px solid #ccc";
-    profileDiv.style.padding = "10px";
-    profileDiv.style.zIndex = "10000";
-    profileDiv.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+    // Create a styled container that mimics the profile tab UI
+    const profileTabContainer = document.createElement('div');
+    profileTabContainer.id = "jira-profile-tab";
+    profileTabContainer.style.position = "fixed";
+    profileTabContainer.style.top = "10px";
+    profileTabContainer.style.right = "10px";
+    profileTabContainer.style.width = "300px";
+    profileTabContainer.style.backgroundColor = "#fff";
+    profileTabContainer.style.border = "1px solid #ccc";
+    profileTabContainer.style.borderRadius = "8px";
+    profileTabContainer.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+    profileTabContainer.style.padding = "10px";
+    profileTabContainer.style.zIndex = "10000";
     
-    // Retrieve the stored profile info
+    // Header (using the same logo as the open button)
+    const header = document.createElement('div');
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.marginBottom = "10px";
+    
+    const logo = document.createElement('img');
+    logo.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
+    logo.style.width = "40px";
+    logo.style.height = "40px";
+    logo.style.marginRight = "10px";
+    
+    const title = document.createElement('h3');
+    title.textContent = "Profile Info";
+    title.style.margin = "0";
+    title.style.fontSize = "16px";
+    
+    header.appendChild(logo);
+    header.appendChild(title);
+    profileTabContainer.appendChild(header);
+    
+    // Retrieve stored Account/Profile info
     const profileInfo = localStorage.getItem("latest_account_profile") || "";
-    profileDiv.innerHTML = `<strong>Profile Info:</strong> <br>${profileInfo}`;
     
-    // Add a copy button for convenience
+    // Content area to display the info
+    const content = document.createElement('div');
+    content.innerHTML = `<strong>Account/Profile:</strong><br>${profileInfo}`;
+    profileTabContainer.appendChild(content);
+    
+    // Copy button for easy copying
     const copyBtn = document.createElement('button');
-    copyBtn.textContent = "Copy Profile Info";
+    copyBtn.textContent = "Copy Info";
     copyBtn.style.display = "block";
-    copyBtn.style.marginTop = "5px";
+    copyBtn.style.marginTop = "10px";
     copyBtn.addEventListener('click', function() {
       navigator.clipboard.writeText(profileInfo).then(() => {
         copyBtn.textContent = "Copied!";
-        setTimeout(() => { copyBtn.textContent = "Copy Profile Info"; }, 2000);
+        setTimeout(() => { copyBtn.textContent = "Copy Info"; }, 2000);
       });
     });
-    profileDiv.appendChild(copyBtn);
+    profileTabContainer.appendChild(copyBtn);
     
-    document.body.appendChild(profileDiv);
-    // Remove the flag so the panel doesn't show up again on subsequent loads
+    document.body.appendChild(profileTabContainer);
+    
+    // Remove the flag so this panel doesn't show on subsequent loads
     localStorage.removeItem("openJiraFromMultiTool");
   }
   
-  return; // Do not run any Freshdesk-specific UI on Jira pages.
+  return; // Skip the rest of the Freshdesk UI on Jira pages
 }
   if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
 
