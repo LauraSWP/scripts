@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      3.2
+// @version      3.3
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -21,18 +21,24 @@
    /***************************************************
    * JIRA LOGIC
    ***************************************************/
-   if (isJira) {
+   if (window.location.hostname.includes("tealium.atlassian.net")) {
     console.log("Running Jira logic");
-
-    // Helper: Parse the profile data from the URL hash
-    function getProfileDataFromHash() {
-      const hash = window.location.hash || "";
-      if (hash.startsWith("#fromMultiTool=")) {
-        return decodeURIComponent(hash.replace("#fromMultiTool=", ""));
+  
+    // Check if the URL has ?fromMultiTool=true
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fromMultiTool") === "true") {
+      // Use window.name for profile data
+      let profileHTML = window.name && window.name.trim() ? window.name : "";
+      if (profileHTML) {
+        injectProfileBox(profileHTML);
+        console.log("Injected profile box with data from window.name");
+      } else {
+        console.log("No profile data found in window.name.");
       }
-      return "";
+    } else {
+      console.log("URL does not indicate fromMultiTool.");
     }
-
+  
     // Helper: Inject the profile box (open by default)
     function injectProfileBox(profileHTML) {
       const wrapper = document.createElement("div");
@@ -47,10 +53,10 @@
       wrapper.style.borderRadius = "16px";
       wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
       wrapper.style.zIndex = "999999";
-      wrapper.style.display = "block"; // open by default
+      wrapper.style.display = "block"; // Open by default
       wrapper.style.overflowY = "auto";
       wrapper.style.fontFamily = "sans-serif";
-
+  
       // Header with title and close button
       const header = document.createElement("div");
       header.style.display = "flex";
@@ -58,13 +64,14 @@
       header.style.alignItems = "center";
       header.style.padding = "6px 8px";
       header.style.borderBottom = "1px solid #d1ccc9";
-
+  
       const title = document.createElement("h3");
       title.textContent = "Profile Info";
       title.style.margin = "0";
       title.style.fontSize = "16px";
-
-      let openBtn; // Declare openBtn in outer scope
+  
+      // Declare openBtn so it is accessible in the close handler
+      let openBtn;
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "×";
       closeBtn.style.width = "30px";
@@ -76,22 +83,24 @@
       closeBtn.style.cursor = "pointer";
       closeBtn.addEventListener("click", () => {
         wrapper.style.display = "none";
-        if (openBtn) openBtn.style.display = "block";
+        if (openBtn) {
+          openBtn.style.display = "block";
+        }
       });
-
+  
       header.appendChild(title);
       header.appendChild(closeBtn);
       wrapper.appendChild(header);
-
-      // Insert profile HTML content
+  
+      // Insert the profile content
       const content = document.createElement("div");
       content.innerHTML = profileHTML;
       content.style.padding = "8px 12px";
       wrapper.appendChild(content);
-
+  
       document.body.appendChild(wrapper);
-
-      // Create the floating open button (same style as Freshdesk)
+  
+      // Create a floating open button (same style as on Freshdesk)
       openBtn = document.createElement("button");
       openBtn.id = "sway-open-btn-jira";
       openBtn.innerHTML = `<img src="https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png" alt="Open Panel">`;
@@ -104,48 +113,38 @@
       openBtn.style.padding = "8px";
       openBtn.style.borderBottomLeftRadius = "8px";
       openBtn.style.borderBottomRightRadius = "8px";
-      openBtn.style.display = "none"; // hidden because panel is open
+      openBtn.style.display = "none"; // Hidden because panel is open
       openBtn.addEventListener("click", () => {
         wrapper.style.display = "block";
         openBtn.style.display = "none";
       });
       document.body.appendChild(openBtn);
     }
-
-    // Helper: Preserve the hash on Next button clicks (so it remains after form reload)
-    function preserveHash() {
+    
+    // Optionally, you can add logic to preserve the query parameter on "Next" button clicks
+    function preserveQueryParam() {
       const nextBtn = document.querySelector("input[type='submit'][value='Next']");
       if (nextBtn && !nextBtn.dataset.mtoolAttached) {
         nextBtn.dataset.mtoolAttached = "true";
         nextBtn.addEventListener("click", () => {
-          const data = getProfileDataFromHash();
-          if (data) {
-            const form = nextBtn.closest("form");
-            if (form) {
-              const urlObj = new URL(form.action, window.location.origin);
-              urlObj.hash = `fromMultiTool=${encodeURIComponent(data)}`;
-              form.action = urlObj.toString();
-            }
+          const form = nextBtn.closest("form");
+          if (form) {
+            // Ensure the query parameter remains on form submission
+            const urlObj = new URL(form.action, window.location.origin);
+            urlObj.searchParams.set("fromMultiTool", "true");
+            form.action = urlObj.toString();
           }
         });
       }
     }
-
+    
     window.addEventListener("DOMContentLoaded", () => {
-      const data = getProfileDataFromHash();
-      console.log("Jira: Profile data from hash:", data);
-      if (data) {
-        injectProfileBox(data);
-      } else {
-        console.log("Jira: No profile data found in hash.");
-      }
-      preserveHash();
-      const observer = new MutationObserver(() => preserveHash());
+      preserveQueryParam();
+      const observer = new MutationObserver(() => preserveQueryParam());
       observer.observe(document.body, { childList: true, subtree: true });
     });
-
-    return; // End Jira logic
   }
+  
 
   /***************************************************
    * FRESHDESK LOGIC
@@ -1002,7 +1001,6 @@ body.dark-mode-override {
     const profileElem = document.getElementById("tab-content-profile");
     const profileHTML = profileElem ? profileElem.innerHTML : "<p>No Profile Data</p>";
     const newWindow = window.open("https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true", "_blank");
-    // Pass the profile data via window.name (this persists across reloads)
     newWindow.name = profileHTML;
   }
   
