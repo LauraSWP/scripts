@@ -3,6 +3,7 @@
     "name": "Freshdesk Ticket MultiTool for Tealium",
     "version": "3.1",
     "description": "MultiTool for Tealium Agents",
+    "update_url": "https://lauraswp.github.io/scripts/update.xml",
     "content_scripts": [
       {
         "matches": [
