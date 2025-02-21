@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      2.4
+// @version      2.5
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -21,26 +21,17 @@
 // ----- Jira MultiTool Code Below -----
 // On the Jira domain:
 if (window.location.hostname.includes("tealium.atlassian.net")) {
-  // Function to attach a click listener to the "Next" button to store profile data
-  function attachNextButtonListener() {
-    const nextBtn = document.querySelector("input[type='submit'][value='Next']");
-    if (nextBtn && !nextBtn.dataset.multitoolListenerAttached) {
-      nextBtn.dataset.multitoolListenerAttached = "true";
-      nextBtn.addEventListener("click", () => {
-        if (window.name && window.name.trim()) {
-          sessionStorage.setItem("fromMultiToolProfile", window.name);
-          console.log("Saved profile data from window.name to sessionStorage.");
-        }
-      });
+  // Function to extract profile data from the URL hash.
+  function getProfileFromHash() {
+    const hash = window.location.hash;
+    if (hash.startsWith("#fromMultiTool=")) {
+      return decodeURIComponent(hash.replace("#fromMultiTool=", ""));
     }
+    return "";
   }
-  // Run immediately and observe DOM changes for the Next button.
-  attachNextButtonListener();
-  const observer = new MutationObserver(attachNextButtonListener);
-  observer.observe(document.body, { childList: true, subtree: true });
-  
-  // Function to inject the profile panel
-  function injectProfilePanel(profileData) {
+
+  // Function to inject the profile panel.
+  function injectProfilePanel(profileHTML) {
     const panel = document.createElement("div");
     panel.id = "jira-profile-panel";
     panel.style.position = "fixed";
@@ -55,17 +46,18 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
     panel.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
     panel.style.padding = "10px";
     panel.style.zIndex = "10000";
-    
+
+    // Header with title and close button.
     const header = document.createElement("div");
     header.style.display = "flex";
     header.style.justifyContent = "space-between";
     header.style.alignItems = "center";
-    
+
     const title = document.createElement("h3");
     title.textContent = "Profile Info";
     title.style.margin = "0";
     title.style.fontSize = "16px";
-    
+
     const closeBtn = document.createElement("button");
     closeBtn.textContent = "×";
     closeBtn.style.fontSize = "16px";
@@ -77,17 +69,19 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
       panel.style.display = "none";
       openBtn.style.display = "block";
     });
-    
+
     header.appendChild(title);
     header.appendChild(closeBtn);
     panel.appendChild(header);
-    
+
+    // Insert the profile HTML.
     const content = document.createElement("div");
-    content.innerHTML = profileData;
+    content.innerHTML = profileHTML;
     panel.appendChild(content);
-    
+
     document.body.appendChild(panel);
-    
+
+    // Create a floating reopen button.
     const openBtn = document.createElement("button");
     openBtn.id = "jira-open-profile-btn";
     openBtn.textContent = "Open Profile Info";
@@ -104,22 +98,36 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
       panel.style.display = "block";
       openBtn.style.display = "none";
     });
+    // Initially, the panel is open.
     openBtn.style.display = "none";
     document.body.appendChild(openBtn);
   }
-  
-  // On DOMContentLoaded, retrieve stored profile data and inject the panel.
+
+  // Preserve the hash when the user clicks the "Next" button.
+  function preserveHashOnNext() {
+    const nextBtn = document.querySelector("input[type='submit'][value='Next']");
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        if (window.location.hash) {
+          sessionStorage.setItem("profileHash", window.location.hash);
+        }
+      });
+    }
+  }
+
   window.addEventListener("DOMContentLoaded", () => {
-    let profileData = sessionStorage.getItem("fromMultiToolProfile");
-    if (!profileData && window.name && window.name.trim()) {
-      profileData = window.name;
+    let profileHTML = getProfileFromHash();
+    // If the hash is missing (due to Next click), try to recover from sessionStorage.
+    if (!profileHTML) {
+      const storedHash = sessionStorage.getItem("profileHash");
+      if (storedHash && storedHash.startsWith("#fromMultiTool=")) {
+        profileHTML = decodeURIComponent(storedHash.replace("#fromMultiTool=", ""));
+      }
     }
-    if (profileData && profileData.trim()) {
-      injectProfilePanel(profileData);
-      console.log("Profile panel injected with data.");
-    } else {
-      console.log("No profile data found.");
+    if (profileHTML) {
+      injectProfilePanel(profileHTML);
     }
+    preserveHashOnNext();
   });
 }
 
@@ -967,12 +975,11 @@ body.dark-mode-override {
    * 8) Open Jira Form – Pre-fill Data into Create Issue Page
    ***************************************************/
   function openJiraForm() {
-    const jiraCreateURL = "https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true";
-    const profileContentElem = document.getElementById("tab-content-profile");
-    const profileHTML = profileContentElem ? profileContentElem.innerHTML : "<p>No Profile Data</p>";
-    const newWindow = window.open(jiraCreateURL, "_blank");
-    // Pass the profile HTML via window.name
-    newWindow.name = profileHTML;
+    const profileElem = document.getElementById("tab-content-profile");
+    const profileHTML = profileElem ? profileElem.innerHTML : "<p>No Profile Data</p>";
+    const encodedProfile = encodeURIComponent(profileHTML);
+    const jiraURL = "https://tealium.atlassian.net/secure/CreateIssue.jspa#fromMultiTool=" + encodedProfile;
+    window.open(jiraURL, "_blank");
   }
   
   
