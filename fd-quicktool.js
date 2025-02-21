@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.3
+// @version      1.4
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -22,38 +22,42 @@
 if (isJira) {
   console.log("Jira page detected – running Jira-specific tasks.");
 
-  // Check if we are on the classic create issue page
-  if (window.location.pathname.includes("CreateIssue!default.jspa")) {
+  // Check if the user came from the MultiTool (i.e., clicked the open Jira form button)
+  if (localStorage.getItem("openJiraFromMultiTool") === "true") {
+    // Create a panel to display the stored profile info
+    const profileDiv = document.createElement('div');
+    profileDiv.style.position = "fixed";
+    profileDiv.style.top = "10px";
+    profileDiv.style.right = "10px";
+    profileDiv.style.backgroundColor = "#f7f7f7";
+    profileDiv.style.border = "1px solid #ccc";
+    profileDiv.style.padding = "10px";
+    profileDiv.style.zIndex = "10000";
+    profileDiv.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
     
-    // Function to wait for the Next button, then click it
-    function waitForNextButton() {
-      let nextBtn = document.querySelector("input[type='submit'][value='Next']");
-      if (nextBtn) {
-        console.log("Next button found. Clicking it...");
-        nextBtn.click();
-        // Wait 3 seconds for the new form to load before checking for the Account/Profile field
-        setTimeout(waitForAccountInput, 3000);
-      } else {
-        setTimeout(waitForNextButton, 1000);
-      }
-    }
+    // Retrieve the stored profile info
+    const profileInfo = localStorage.getItem("latest_account_profile") || "";
+    profileDiv.innerHTML = `<strong>Profile Info:</strong> <br>${profileInfo}`;
     
-    // Function to wait for the Account/Profile input field and fill it in
-    function waitForAccountInput() {
-      let acctInput = document.getElementById("customfield_10652");
-      if (acctInput) {
-        const latestValue = localStorage.getItem("latest_account_profile") || "";
-        acctInput.value = latestValue;
-        console.log("Prefilled Account/Profile with:", latestValue);
-      } else {
-        setTimeout(waitForAccountInput, 1000);
-      }
-    }
+    // Add a copy button for convenience
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = "Copy Profile Info";
+    copyBtn.style.display = "block";
+    copyBtn.style.marginTop = "5px";
+    copyBtn.addEventListener('click', function() {
+      navigator.clipboard.writeText(profileInfo).then(() => {
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => { copyBtn.textContent = "Copy Profile Info"; }, 2000);
+      });
+    });
+    profileDiv.appendChild(copyBtn);
     
-    waitForNextButton();
+    document.body.appendChild(profileDiv);
+    // Remove the flag so the panel doesn't show up again on subsequent loads
+    localStorage.removeItem("openJiraFromMultiTool");
   }
   
-  return; // Do not run the Freshdesk MultiTool UI on Jira pages.
+  return; // Do not run any Freshdesk-specific UI on Jira pages.
 }
   if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
 
@@ -146,7 +150,7 @@ body.dark-mode-override {
   right: 20px;
   width: 380px;
   min-width: 280px;
-  height: auto;
+  height: 600px;
   background-color: var(--panel-bg);
   color: var(--panel-fg);
   border: 1px solid #cfd7df;
@@ -797,15 +801,44 @@ body.dark-mode-override {
     const sec = document.createElement('div');
     sec.className = "mtb-section";
     sec.style.textAlign = "center";
-
-    // Jira Button – open Jira Create Issue page with pre-filled data
+  
+    // Create a grid container for quick access buttons
+    const grid = document.createElement('div');
+    grid.style.display = "flex";
+    grid.style.flexWrap = "wrap";
+    grid.style.gap = "8px";
+    grid.style.justifyContent = "center";
+  
+    // Define a new quick-access link icon (feel free to swap it out)
+    const linkIconSVG = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+         xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 13a5 5 0 0 1 7 7l-1 1a5 5 0 0 1-7-7"></path>
+      <path d="M14 11a5 5 0 0 0-7-7l-1 1a5 5 0 0 0 7 7"></path>
+    </svg>
+    `;
+  
+    // Button 1: Open Jira Form (with quick-access icon)
     const jiraBtn = document.createElement('button');
     jiraBtn.className = "sway-btn-text";
-    jiraBtn.textContent = "Open Jira Form";
-    jiraBtn.style.margin = "8px auto";
+    jiraBtn.innerHTML = `${linkIconSVG} <span>Open Jira Form</span>`;
+    jiraBtn.style.margin = "8px";
     jiraBtn.addEventListener('click', openJiraForm);
-    sec.appendChild(jiraBtn);
-
+    grid.appendChild(jiraBtn);
+  
+    // Button 2: Quick Access (example button)
+    const quickAccessBtn = document.createElement('button');
+    quickAccessBtn.className = "sway-btn-text";
+    quickAccessBtn.innerHTML = `${linkIconSVG} <span>Quick Access</span>`;
+    quickAccessBtn.style.margin = "8px";
+    quickAccessBtn.addEventListener('click', function(){
+      window.open("https://example.com", "_blank");
+    });
+    grid.appendChild(quickAccessBtn);
+  
+    // Append the grid to the section, and the section to the container.
+    sec.appendChild(grid);
     container.appendChild(sec);
   }
 
@@ -873,10 +906,11 @@ body.dark-mode-override {
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
     
-    // Store latest Account/Profile for Jira page to pick up later
+    // Save latest Account/Profile for Jira usage
     localStorage.setItem("latest_account_profile", accountVal + "/" + profileVal);
+    // Set a flag to show the profile info panel on the Jira page
+    localStorage.setItem("openJiraFromMultiTool", "true");
     
-    // Open the classic Jira Create Issue page
     window.open(jiraCreateURL, '_blank');
   }
 
