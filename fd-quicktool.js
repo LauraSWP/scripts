@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.1
+// @version      1.2
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -31,8 +31,8 @@ if (isJira) {
       if (nextBtn) {
         console.log("Next button found. Clicking it...");
         nextBtn.click();
-        // After clicking, wait for the new form to load
-        waitForAccountInput();
+        // Wait 3 seconds for the new form to load before checking for the Account/Profile field
+        setTimeout(waitForAccountInput, 3000);
       } else {
         setTimeout(waitForNextButton, 1000);
       }
@@ -149,7 +149,7 @@ body.dark-mode-override {
   height: 550px;
   background-color: var(--panel-bg);
   color: var(--panel-fg);
-  border: 2px solid var(--panel-border);
+  border: 1px solid #8abdef;
   border-radius: 16px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
   z-index: 999999;
@@ -271,7 +271,7 @@ body.dark-mode-override {
   position: absolute;
   width: 14px;
   height: 14px;
-  top: 4px;
+  top: 3px;
   color: #fff;
 }
 .toggle-icon--moon {
@@ -302,8 +302,8 @@ body.dark-mode-override {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 8px;
-  background: linear-gradient(to bottom, transparent, var(--tab-border));
+  height: 18px;
+  background: linear-gradient(to bottom, transparent, #ebeff3);
 }
 .mtb-logo {
   width: 28px;
@@ -362,6 +362,7 @@ body.dark-mode-override {
   border-radius: 8px;
   padding: 8px;
   margin-bottom: 8px;
+  padding-bottom: 40px;
 }
 
 /* Field rows */
@@ -981,7 +982,7 @@ body.dark-mode-override {
     header.className = "mtb-header";
     const tealiumLogo = document.createElement('img');
     tealiumLogo.className = "mtb-logo";
-    tealiumLogo.src = "https://www.tealium.com/wp-content/uploads/2021/07/cropped-Tealium-logo-2021-32x32.png";
+    tealiumLogo.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
     const h3 = document.createElement('h3');
     h3.className = "mtb-title";
     h3.textContent = "MultiTool Beast";
@@ -1103,12 +1104,16 @@ body.dark-mode-override {
     const newId = extractTicketId();
     if (newId && newId !== currentId) {
       currentId = newId;
-      const container = document.getElementById('tab-content-profile');
-      if (container) {
-        populateProfileTab(container);
-      }
+      // Wait 2 seconds before repopulating to ensure new details are loaded
+      setTimeout(function() {
+        const container = document.getElementById('tab-content-profile');
+        if (container) {
+          populateProfileTab(container);
+        }
+      }, 2000);
     }
   }, 3000);
+  
 
   /***************************************************
    * 12) Initialize on DOM ready
