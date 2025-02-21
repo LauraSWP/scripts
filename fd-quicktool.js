@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.6
+// @version      1.7
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -23,12 +23,9 @@ if (isJira) {
   console.log("Jira page detected – running Jira-specific tasks.");
 
   // Wait until the DOM is fully loaded
-  window.addEventListener('DOMContentLoaded', () => {
-    // Check if the user came from our MultiTool open Jira button
-    if (localStorage.getItem("openJiraFromMultiTool") === "true") {
-      // Create a styled container that mimics the profile tab UI
-      const profileTabContainer = document.createElement('div');
-      profileTabContainer.id = "jira-profile-tab";
+  if (window.location.search.includes("fromMultiTool=true")) {
+    window.addEventListener("DOMContentLoaded", () => {
+      const profileTabContainer = document.createElement("div");
       profileTabContainer.style.position = "fixed";
       profileTabContainer.style.top = "10px";
       profileTabContainer.style.right = "10px";
@@ -39,56 +36,48 @@ if (isJira) {
       profileTabContainer.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
       profileTabContainer.style.padding = "10px";
       profileTabContainer.style.zIndex = "10000";
-      
-      // Header (using the same logo as the open button)
-      const header = document.createElement('div');
+  
+      const header = document.createElement("div");
       header.style.display = "flex";
       header.style.alignItems = "center";
       header.style.marginBottom = "10px";
-      
-      const logo = document.createElement('img');
-      // Using your desired logo URL for the header on Jira:
+  
+      const logo = document.createElement("img");
       logo.src = "https://github.com/LauraSWP/scripts/blob/main/assets/tealiumlogo.png?raw=true";
       logo.style.width = "40px";
       logo.style.height = "40px";
       logo.style.marginRight = "10px";
-      
-      const title = document.createElement('h3');
+  
+      const title = document.createElement("h3");
       title.textContent = "Profile Info";
       title.style.margin = "0";
       title.style.fontSize = "16px";
-      
+  
       header.appendChild(logo);
       header.appendChild(title);
       profileTabContainer.appendChild(header);
-      
-      // Retrieve stored Account/Profile info
+  
+      // Retrieve the profile info stored on Freshdesk
       const profileInfo = localStorage.getItem("latest_account_profile") || "";
-      
-      // Content area to display the info
-      const content = document.createElement('div');
+      const content = document.createElement("div");
       content.innerHTML = `<strong>Account/Profile:</strong><br>${profileInfo}`;
       profileTabContainer.appendChild(content);
-      
-      // Copy button for easy copying
-      const copyBtn = document.createElement('button');
+  
+      const copyBtn = document.createElement("button");
       copyBtn.textContent = "Copy Info";
       copyBtn.style.display = "block";
       copyBtn.style.marginTop = "10px";
-      copyBtn.addEventListener('click', function() {
+      copyBtn.addEventListener("click", () => {
         navigator.clipboard.writeText(profileInfo).then(() => {
           copyBtn.textContent = "Copied!";
           setTimeout(() => { copyBtn.textContent = "Copy Info"; }, 2000);
         });
       });
       profileTabContainer.appendChild(copyBtn);
-      
+  
       document.body.appendChild(profileTabContainer);
-      
-      // Remove the flag so this panel doesn't show on subsequent loads
-      localStorage.removeItem("openJiraFromMultiTool");
-    }
-  });
+    });
+  }
   
   return; // Skip the rest of the Freshdesk UI on Jira pages.
 }
@@ -938,15 +927,14 @@ body.dark-mode-override {
    * 8) Open Jira Form – Pre-fill Data into Create Issue Page
    ***************************************************/
   function openJiraForm() {
-    const jiraCreateURL = "https://tealium.atlassian.net/secure/CreateIssue!default.jspa";
+    const jiraCreateURL = "https://tealium.atlassian.net/secure/CreateIssue.jspa?fromMultiTool=true";
     const ticketId = extractTicketId() || "";
     const accountVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_tealium_account"]')) || "";
     const profileVal = getFieldValue(document.querySelector('input[data-test-text-field="customFields.cf_iq_profile"]')) || "";
     
-    // Save latest Account/Profile for Jira usage
+    // Save the profile info for later use (this will persist on the Freshdesk domain,
+    // but we now rely on the URL flag to trigger the display on Jira)
     localStorage.setItem("latest_account_profile", accountVal + "/" + profileVal);
-    // Set a flag to show the profile info panel on the Jira page
-    localStorage.setItem("openJiraFromMultiTool", "true");
     
     window.open(jiraCreateURL, '_blank');
   }
