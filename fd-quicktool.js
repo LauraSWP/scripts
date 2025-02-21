@@ -101,8 +101,6 @@ if (window.location.hostname.includes("tealium.atlassian.net")) {
       document.body.appendChild(openBtn);
     }
   });
-}
-
 
   // Check for the session flag and inject the panel when ready
   if (sessionStorage.getItem("fromMultiTool") === "true") {
