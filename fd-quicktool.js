@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.5
+// @version      1.6
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -22,73 +22,78 @@
 if (isJira) {
   console.log("Jira page detected – running Jira-specific tasks.");
 
-  // Check if the user came from our MultiTool open Jira button
-  if (localStorage.getItem("openJiraFromMultiTool") === "true") {
-    // Create a styled container that mimics the profile tab UI
-    const profileTabContainer = document.createElement('div');
-    profileTabContainer.id = "jira-profile-tab";
-    profileTabContainer.style.position = "fixed";
-    profileTabContainer.style.top = "10px";
-    profileTabContainer.style.right = "10px";
-    profileTabContainer.style.width = "300px";
-    profileTabContainer.style.backgroundColor = "#fff";
-    profileTabContainer.style.border = "1px solid #ccc";
-    profileTabContainer.style.borderRadius = "8px";
-    profileTabContainer.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
-    profileTabContainer.style.padding = "10px";
-    profileTabContainer.style.zIndex = "10000";
-    
-    // Header (using the same logo as the open button)
-    const header = document.createElement('div');
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.marginBottom = "10px";
-    
-    const logo = document.createElement('img');
-    logo.src = "https://github.com/LauraSWP/scripts/blob/main/assets/tealiumlogo.png?raw=true";
-    logo.style.width = "40px";
-    logo.style.height = "40px";
-    logo.style.marginRight = "10px";
-    
-    const title = document.createElement('h3');
-    title.textContent = "Profile Info";
-    title.style.margin = "0";
-    title.style.fontSize = "16px";
-    
-    header.appendChild(logo);
-    header.appendChild(title);
-    profileTabContainer.appendChild(header);
-    
-    // Retrieve stored Account/Profile info
-    const profileInfo = localStorage.getItem("latest_account_profile") || "";
-    
-    // Content area to display the info
-    const content = document.createElement('div');
-    content.innerHTML = `<strong>Account/Profile:</strong><br>${profileInfo}`;
-    profileTabContainer.appendChild(content);
-    
-    // Copy button for easy copying
-    const copyBtn = document.createElement('button');
-    copyBtn.textContent = "Copy Info";
-    copyBtn.style.display = "block";
-    copyBtn.style.marginTop = "10px";
-    copyBtn.addEventListener('click', function() {
-      navigator.clipboard.writeText(profileInfo).then(() => {
-        copyBtn.textContent = "Copied!";
-        setTimeout(() => { copyBtn.textContent = "Copy Info"; }, 2000);
+  // Wait until the DOM is fully loaded
+  window.addEventListener('DOMContentLoaded', () => {
+    // Check if the user came from our MultiTool open Jira button
+    if (localStorage.getItem("openJiraFromMultiTool") === "true") {
+      // Create a styled container that mimics the profile tab UI
+      const profileTabContainer = document.createElement('div');
+      profileTabContainer.id = "jira-profile-tab";
+      profileTabContainer.style.position = "fixed";
+      profileTabContainer.style.top = "10px";
+      profileTabContainer.style.right = "10px";
+      profileTabContainer.style.width = "300px";
+      profileTabContainer.style.backgroundColor = "#fff";
+      profileTabContainer.style.border = "1px solid #ccc";
+      profileTabContainer.style.borderRadius = "8px";
+      profileTabContainer.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+      profileTabContainer.style.padding = "10px";
+      profileTabContainer.style.zIndex = "10000";
+      
+      // Header (using the same logo as the open button)
+      const header = document.createElement('div');
+      header.style.display = "flex";
+      header.style.alignItems = "center";
+      header.style.marginBottom = "10px";
+      
+      const logo = document.createElement('img');
+      // Using your desired logo URL for the header on Jira:
+      logo.src = "https://github.com/LauraSWP/scripts/blob/main/assets/tealiumlogo.png?raw=true";
+      logo.style.width = "40px";
+      logo.style.height = "40px";
+      logo.style.marginRight = "10px";
+      
+      const title = document.createElement('h3');
+      title.textContent = "Profile Info";
+      title.style.margin = "0";
+      title.style.fontSize = "16px";
+      
+      header.appendChild(logo);
+      header.appendChild(title);
+      profileTabContainer.appendChild(header);
+      
+      // Retrieve stored Account/Profile info
+      const profileInfo = localStorage.getItem("latest_account_profile") || "";
+      
+      // Content area to display the info
+      const content = document.createElement('div');
+      content.innerHTML = `<strong>Account/Profile:</strong><br>${profileInfo}`;
+      profileTabContainer.appendChild(content);
+      
+      // Copy button for easy copying
+      const copyBtn = document.createElement('button');
+      copyBtn.textContent = "Copy Info";
+      copyBtn.style.display = "block";
+      copyBtn.style.marginTop = "10px";
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(profileInfo).then(() => {
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => { copyBtn.textContent = "Copy Info"; }, 2000);
+        });
       });
-    });
-    profileTabContainer.appendChild(copyBtn);
-    
-    document.body.appendChild(profileTabContainer);
-    
-    // Remove the flag so this panel doesn't show on subsequent loads
-    localStorage.removeItem("openJiraFromMultiTool");
-  }
+      profileTabContainer.appendChild(copyBtn);
+      
+      document.body.appendChild(profileTabContainer);
+      
+      // Remove the flag so this panel doesn't show on subsequent loads
+      localStorage.removeItem("openJiraFromMultiTool");
+    }
+  });
   
-  return; // Skip the rest of the Freshdesk UI on Jira pages
+  return; // Skip the rest of the Freshdesk UI on Jira pages.
 }
-  if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
+
+if (!isFreshdesk) return; // Only proceed on Freshdesk ticket pages
 
   /***************************************************
    * 0) SVG Icons
