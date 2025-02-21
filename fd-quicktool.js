@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Freshdesk Ticket MultiTool for Tealium
 // @namespace    https://github.com/LauraSWP/scripts
-// @version      1.4
+// @version      1.5
 // @description  Appends a sticky, draggable menu to Freshdesk pages with ticket info, copy buttons, recent tickets (last 7 days), a night mode toggle, a "Copy All" button for Slack/Jira sharing, and arrow buttons for scrolling. Treats "Account"/"Profile" as empty and shows "No tickets in the last 7 days" when appropriate. Positioned at top-left.
 // @homepageURL  https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
 // @updateURL    https://raw.githubusercontent.com/LauraSWP/scripts/refs/heads/main/fd-quicktool.js
@@ -45,7 +45,7 @@ if (isJira) {
     header.style.marginBottom = "10px";
     
     const logo = document.createElement('img');
-    logo.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
+    logo.src = "https://github.com/LauraSWP/scripts/blob/main/assets/tealiumlogo.png?raw=true";
     logo.style.width = "40px";
     logo.style.height = "40px";
     logo.style.marginRight = "10px";
@@ -838,28 +838,31 @@ body.dark-mode-override {
     grid.style.gap = "8px";
     grid.style.justifyContent = "center";
   
-    // Define a new quick-access link icon (feel free to swap it out)
-    const linkIconSVG = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-         xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 13a5 5 0 0 1 7 7l-1 1a5 5 0 0 1-7-7"></path>
-      <path d="M14 11a5 5 0 0 0-7-7l-1 1a5 5 0 0 0 7 7"></path>
-    </svg>
-    `;
-  
-    // Button 1: Open Jira Form (with quick-access icon)
+    // Button 1: Open Jira Form (using the Jira logo image)
     const jiraBtn = document.createElement('button');
     jiraBtn.className = "sway-btn-text";
-    jiraBtn.innerHTML = `${linkIconSVG} <span>Open Jira Form</span>`;
     jiraBtn.style.margin = "8px";
+    
+    // Use an image for the Jira logo with your new URL
+    const jiraLogoImg = document.createElement('img');
+    jiraLogoImg.src = "https://github.com/LauraSWP/scripts/blob/main/assets/jiralogo.svg?raw=true";
+    jiraLogoImg.style.width = "16px";
+    jiraLogoImg.style.height = "16px";
+    jiraLogoImg.style.verticalAlign = "middle";
+    jiraLogoImg.style.marginRight = "6px";
+    
+    jiraBtn.appendChild(jiraLogoImg);
+    const jiraText = document.createElement('span');
+    jiraText.textContent = "Open Jira Form";
+    jiraBtn.appendChild(jiraText);
+    
     jiraBtn.addEventListener('click', openJiraForm);
     grid.appendChild(jiraBtn);
   
     // Button 2: Quick Access (example button)
     const quickAccessBtn = document.createElement('button');
     quickAccessBtn.className = "sway-btn-text";
-    quickAccessBtn.innerHTML = `${linkIconSVG} <span>Quick Access</span>`;
+    quickAccessBtn.innerHTML = `${jiraLogoImg.outerHTML} <span>Quick Access</span>`;
     quickAccessBtn.style.margin = "8px";
     quickAccessBtn.addEventListener('click', function(){
       window.open("https://example.com", "_blank");
@@ -870,7 +873,7 @@ body.dark-mode-override {
     sec.appendChild(grid);
     container.appendChild(sec);
   }
-
+  
   /***************************************************
    * 7) Settings Tab – Font Size Slider
    ***************************************************/
@@ -1044,7 +1047,7 @@ wrapper.style.display = isOpen ? "block" : "none";
     header.className = "mtb-header";
     const tealiumLogo = document.createElement('img');
     tealiumLogo.className = "mtb-logo";
-    tealiumLogo.src = "https://cdn.builtin.com/cdn-cgi/image/f=auto,fit=contain,w=40,h=40,q=100/https://builtin.com/sites/www.builtin.com/files/2022-09/2021_Tealium_icon_rgb_full-color.png";
+    tealiumLogo.src = "https://github.com/LauraSWP/scripts/blob/main/assets/tealiumlogo.png?raw=true";
     const h3 = document.createElement('h3');
     h3.className = "mtb-title";
     h3.textContent = "MultiTool Beast";
