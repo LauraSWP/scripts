@@ -146,10 +146,10 @@ body.dark-mode-override {
   right: 20px;
   width: 380px;
   min-width: 280px;
-  height: 550px;
+  height: auto;
   background-color: var(--panel-bg);
   color: var(--panel-fg);
-  border: 1px solid #8abdef;
+  border: 1px solid #cfd7df;
   border-radius: 16px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
   z-index: 999999;
@@ -303,7 +303,7 @@ body.dark-mode-override {
   left: 0;
   width: 100%;
   height: 18px;
-  background: linear-gradient(to bottom, transparent, #ebeff3);
+  background: linear-gradient(to bottom, transparent, #ebeff3a8);
 }
 .mtb-logo {
   width: 28px;
@@ -895,20 +895,19 @@ body.dark-mode-override {
     let initFontSize = loadPref("mtb_fontSize", 14);
     wrapper.style.fontSize = initFontSize + "px";
 
-    // Restore saved position if available
-    const pos = loadPref("boxPosition", null);
-    if (pos && pos.top && pos.left) {
-      wrapper.style.top = pos.top;
-      wrapper.style.left = pos.left;
-    }
+   // Restore saved position if available
+const pos = loadPref("boxPosition", null);
+if (pos && pos.top && pos.left) {
+  wrapper.style.top = pos.top;
+  wrapper.style.left = pos.left;
+}
     wrapper.style.display = loadPref("keepOpen", false) ? "block" : "none";
-    if (loadPref("keepOpen", false)) {
-      savePref("multitool_open", true);
+    if (!loadPref("keepOpen", false)) {
+      savePref("multitool_open", false);
     }
-    const isOpen = loadPref("multitool_open", false);
-    if (!isOpen) {
-      wrapper.style.display = "none";
-    }
+// Set display based on the saved open state
+const isOpen = loadPref("multitool_open", false);
+wrapper.style.display = isOpen ? "block" : "none";
 
     // Drag handle (tiny tab at top center)
     const dragHandle = document.createElement('div');
